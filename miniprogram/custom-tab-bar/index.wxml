@@ -1,0 +1,61 @@
+<!--custom-tab-bar/index.wxml-->
+<view class="tab-bar">
+  <!-- 顶部渐变发光线 -->
+  <view class="tab-bar-glow"></view>
+
+  <!-- 毛玻璃背景 -->
+  <view class="tab-bar-bg"></view>
+
+  <view class="tab-bar-inner">
+    <view
+      wx:for="{{list}}"
+      wx:key="index"
+      class="tab-item {{selected === index ? 'active' : ''}}"
+      data-index="{{index}}"
+      bindtap="switchTab"
+    >
+      <!-- 图标容器 -->
+      <view class="tab-icon-box">
+        <!-- 监控图标：屏幕+支架 -->
+        <view class="icon-monitor" wx:if="{{item.icon === 'monitor'}}">
+          <view class="monitor-screen">
+            <view class="monitor-scanline"></view>
+          </view>
+          <view class="monitor-stand"></view>
+        </view>
+
+        <!-- 预警图标：铃铛 -->
+        <view class="icon-alarm" wx:if="{{item.icon === 'alarm'}}">
+          <view class="bell-top"></view>
+          <view class="bell-body"></view>
+          <view class="bell-clapper"></view>
+          <view class="alarm-badge" wx:if="{{selected === index}}"></view>
+        </view>
+
+        <!-- 设备图标：摄像头 -->
+        <view class="icon-device" wx:if="{{item.icon === 'device'}}">
+          <view class="camera-body"></view>
+          <view class="camera-lens"></view>
+          <view class="camera-led {{selected === index ? 'led-on' : ''}}"></view>
+        </view>
+
+        <!-- 设置图标：齿轮 -->
+        <view class="icon-settings" wx:if="{{item.icon === 'settings'}}">
+          <view class="gear-outer">
+            <view class="gear-tooth gt1"></view>
+            <view class="gear-tooth gt2"></view>
+            <view class="gear-tooth gt3"></view>
+            <view class="gear-tooth gt4"></view>
+          </view>
+          <view class="gear-inner"></view>
+        </view>
+
+        <!-- 选中指示光点 -->
+        <view class="active-dot" wx:if="{{selected === index}}"></view>
+      </view>
+
+      <!-- 文字标签 -->
+      <text class="tab-label">{{item.text}}</text>
+    </view>
+  </view>
+</view>

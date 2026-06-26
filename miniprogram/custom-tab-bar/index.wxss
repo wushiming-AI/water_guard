@@ -1,0 +1,378 @@
+/* ─── custom-tab-bar/index.wxss ─── */
+
+/* 整体容器 */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 110rpx;
+  z-index: 9999;
+}
+
+/* 顶部渐变发光线 */
+.tab-bar-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2rpx;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(66, 165, 245, 0.1) 15%,
+    rgba(66, 165, 245, 0.6) 35%,
+    rgba(100, 200, 255, 0.9) 50%,
+    rgba(66, 165, 245, 0.6) 65%,
+    rgba(66, 165, 245, 0.1) 85%,
+    transparent 100%
+  );
+  z-index: 3;
+}
+
+/* 毛玻璃背景 */
+.tab-bar-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(8, 15, 30, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  z-index: 1;
+}
+
+/* 内容区 */
+.tab-bar-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 110rpx;
+  padding: 0 16rpx;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ─── 单个 Tab 项 ─── */
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  height: 100%;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* 图标容器 */
+.tab-icon-box {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 4rpx;
+}
+
+/* 文字标签 */
+.tab-label {
+  font-size: 20rpx;
+  color: rgba(90, 122, 150, 0.7);
+  transition: all 0.3s ease;
+  letter-spacing: 1rpx;
+}
+
+/* 激活态文字 */
+.tab-item.active .tab-label {
+  color: #64b5f6;
+  font-weight: 600;
+  text-shadow: 0 0 12rpx rgba(66, 165, 245, 0.4);
+}
+
+/* ─── 选中指示光点 ─── */
+.active-dot {
+  position: absolute;
+  bottom: -8rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #42a5f5;
+  box-shadow: 0 0 12rpx rgba(66, 165, 245, 0.8), 0 0 24rpx rgba(66, 165, 245, 0.4);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  50%      { transform: translateX(-50%) scale(1.3); opacity: 0.7; }
+}
+
+
+/* ═══════════════════════════════════════════
+   图标：监控 Monitor（屏幕 + 支架）
+   ═══════════════════════════════════════════ */
+.icon-monitor {
+  position: relative;
+  width: 44rpx;
+  height: 40rpx;
+}
+
+.monitor-screen {
+  width: 44rpx;
+  height: 30rpx;
+  border: 3rpx solid #5a7a96;
+  border-radius: 4rpx;
+  position: relative;
+  overflow: hidden;
+  background: rgba(66, 165, 245, 0.03);
+  transition: all 0.3s ease;
+}
+
+/* 扫描线 */
+.monitor-scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6rpx;
+  background: linear-gradient(180deg, rgba(66, 165, 245, 0.3), transparent);
+  animation: scanMove 2.5s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes scanMove {
+  0%   { top: -6rpx; }
+  100% { top: 30rpx; }
+}
+
+.monitor-stand {
+  width: 16rpx;
+  height: 6rpx;
+  background: #5a7a96;
+  margin: 0 auto;
+  border-radius: 0 0 2rpx 2rpx;
+  transition: background 0.3s ease;
+}
+
+/* 激活态 */
+.tab-item.active .monitor-screen {
+  border-color: #42a5f5;
+  background: rgba(66, 165, 245, 0.08);
+  box-shadow: 0 0 16rpx rgba(66, 165, 245, 0.3);
+}
+.tab-item.active .monitor-scanline {
+  opacity: 1;
+}
+.tab-item.active .monitor-stand {
+  background: #42a5f5;
+}
+
+
+/* ═══════════════════════════════════════════
+   图标：预警 Alarm（铃铛）
+   ═══════════════════════════════════════════ */
+.icon-alarm {
+  position: relative;
+  width: 40rpx;
+  height: 44rpx;
+}
+
+.bell-top {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #5a7a96;
+  margin: 0 auto 2rpx;
+  transition: background 0.3s ease;
+}
+
+.bell-body {
+  width: 32rpx;
+  height: 24rpx;
+  border: 3rpx solid #5a7a96;
+  border-radius: 16rpx 16rpx 0 0;
+  margin: 0 auto;
+  position: relative;
+  background: rgba(231, 76, 60, 0.03);
+  transition: all 0.3s ease;
+}
+
+.bell-clapper {
+  width: 12rpx;
+  height: 4rpx;
+  background: #5a7a96;
+  border-radius: 2rpx;
+  margin: 3rpx auto 0;
+  transition: background 0.3s ease;
+}
+
+/* 预警红点 */
+.alarm-badge {
+  position: absolute;
+  top: -2rpx;
+  right: -4rpx;
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #e74c3c;
+  box-shadow: 0 0 8rpx rgba(231, 76, 60, 0.6);
+  animation: badgePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.2); }
+}
+
+/* 激活态 */
+.tab-item.active .bell-top {
+  background: #e74c3c;
+}
+.tab-item.active .bell-body {
+  border-color: #e74c3c;
+  background: rgba(231, 76, 60, 0.08);
+  box-shadow: 0 0 16rpx rgba(231, 76, 60, 0.3);
+}
+.tab-item.active .bell-clapper {
+  background: #e74c3c;
+}
+
+
+/* ═══════════════════════════════════════════
+   图标：设备 Device（摄像头）
+   ═══════════════════════════════════════════ */
+.icon-device {
+  position: relative;
+  width: 44rpx;
+  height: 36rpx;
+}
+
+.camera-body {
+  width: 36rpx;
+  height: 24rpx;
+  border: 3rpx solid #5a7a96;
+  border-radius: 6rpx;
+  margin: 0 auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(66, 165, 245, 0.03);
+  transition: all 0.3s ease;
+}
+
+.camera-lens {
+  width: 12rpx;
+  height: 12rpx;
+  border: 2rpx solid #5a7a96;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.camera-led {
+  position: absolute;
+  top: 4rpx;
+  right: 6rpx;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 50%;
+  background: #5a7a96;
+  transition: all 0.3s ease;
+}
+
+.camera-led.led-on {
+  background: #4caf50;
+  box-shadow: 0 0 8rpx rgba(76, 175, 80, 0.8);
+  animation: ledBlink 2s ease-in-out infinite;
+}
+
+@keyframes ledBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* 激活态 */
+.tab-item.active .camera-body {
+  border-color: #42a5f5;
+  background: rgba(66, 165, 245, 0.08);
+  box-shadow: 0 0 16rpx rgba(66, 165, 245, 0.3);
+}
+.tab-item.active .camera-lens {
+  border-color: #42a5f5;
+}
+
+
+/* ═══════════════════════════════════════════
+   图标：设置 Settings（齿轮）
+   ═══════════════════════════════════════════ */
+.icon-settings {
+  position: relative;
+  width: 40rpx;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gear-outer {
+  width: 32rpx;
+  height: 32rpx;
+  border: 3rpx solid #5a7a96;
+  border-radius: 50%;
+  position: relative;
+  background: rgba(66, 165, 245, 0.03);
+  transition: all 0.3s ease;
+}
+
+.gear-inner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12rpx;
+  height: 12rpx;
+  border: 2rpx solid #5a7a96;
+  border-radius: 50%;
+  background: transparent;
+  transition: all 0.3s ease;
+}
+
+/* 齿轮齿（4个短横线） */
+.gear-tooth {
+  position: absolute;
+  width: 6rpx;
+  height: 3rpx;
+  background: #5a7a96;
+  border-radius: 1rpx;
+  transition: background 0.3s ease;
+}
+
+.gt1 { top: -5rpx;  left: 50%; transform: translateX(-50%); }
+.gt2 { bottom: -5rpx; left: 50%; transform: translateX(-50%); }
+.gt3 { left: -5rpx;  top: 50%; transform: translateY(-50%); width: 3rpx; height: 6rpx; }
+.gt4 { right: -5rpx; top: 50%; transform: translateY(-50%); width: 3rpx; height: 6rpx; }
+
+/* 激活态 - 齿轮旋转 */
+.tab-item.active .gear-outer {
+  border-color: #42a5f5;
+  background: rgba(66, 165, 245, 0.08);
+  box-shadow: 0 0 16rpx rgba(66, 165, 245, 0.3);
+  animation: gearSpin 8s linear infinite;
+}
+.tab-item.active .gear-inner {
+  border-color: #42a5f5;
+}
+.tab-item.active .gear-tooth {
+  background: #42a5f5;
+}
+
+@keyframes gearSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files (too large for GitHub)
+best.pt
+yolo26n.pt
+*.pt
+*.pth
+*.onnx
+
+# Generated demo files
+demo_drowning.mp4
+demo_frame_*.jpg
+
+# Logs
+*.log
+
+# Database dumps
+*.sql.bak
+
+# Environment config
+.env
+
+# Node modules (if any)
+node_modules/
+
+# Copyright materials (PDF/docx, local only)
+软著申请材料/
+
+# Icons cache
+static/icons/
+nul

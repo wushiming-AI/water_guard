@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "监控大屏",
+  "navigationBarBackgroundColor": "#080f1e",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#080f1e",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
+}

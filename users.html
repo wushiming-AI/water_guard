@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用户管理 - 水域溺水防控AI预警系统</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background: #0c1929;
+      color: #c8d8e8;
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── 侧边栏 ── */
+    .sidebar {
+      width: 220px; min-height: 100vh;
+      background: rgba(13,33,55,0.95);
+      border-right: 1px solid rgba(52,152,219,0.2);
+      position: fixed; top: 0; left: 0; z-index: 100;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-brand {
+      padding: 20px 16px;
+      border-bottom: 1px solid rgba(52,152,219,0.2);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-brand .icon { width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg,#1a6fa8,#3498db);
+      display: flex; align-items: center; justify-content: center; }
+    .sidebar-brand .icon i { color:#fff; font-size:18px; }
+    .sidebar-brand span { font-size:14px; font-weight:700; color:#e0e8f0; line-height:1.3; }
+    .nav-item a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 20px; color: rgba(200,216,232,0.6);
+      text-decoration: none; font-size: 14px;
+      transition: all 0.2s; border-left: 3px solid transparent;
+    }
+    .nav-item a:hover, .nav-item a.active {
+      color: #3498db; background: rgba(52,152,219,0.1);
+      border-left-color: #3498db;
+    }
+    .nav-item a i { width: 18px; text-align: center; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px;
+      border-top: 1px solid rgba(52,152,219,0.15); font-size: 12px;
+      color: rgba(200,216,232,0.4); }
+    .sidebar-footer .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .sidebar-footer .avatar { width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg,#1a6fa8,#3498db);
+      display: flex; align-items: center; justify-content: center; }
+    .sidebar-footer .avatar i { font-size:13px; color:#fff; }
+    .btn-logout { background: none; border: none; color: rgba(200,216,232,0.4);
+      font-size: 12px; cursor: pointer; padding: 0; }
+    .btn-logout:hover { color: #ff6b6b; }
+
+    /* ── 主内容区 ── */
+    .main-content { margin-left: 220px; padding: 24px; }
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .page-header h2 { font-size: 20px; font-weight: 700; color: #e0e8f0; }
+    .page-header .time-badge {
+      background: rgba(52,152,219,0.15); border: 1px solid rgba(52,152,219,0.3);
+      border-radius: 20px; padding: 4px 14px; font-size: 13px; color: #3498db;
+    }
+
+    /* ── 操作栏 ── */
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+    }
+    .toolbar .search-box {
+      position: relative; width: 280px;
+    }
+    .toolbar .search-box input {
+      width: 100%; padding: 8px 14px 8px 36px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(52,152,219,0.25);
+      border-radius: 8px; color: #c8d8e8; font-size: 13px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .toolbar .search-box input::placeholder { color: rgba(200,216,232,0.35); }
+    .toolbar .search-box input:focus { border-color: rgba(52,152,219,0.6); }
+    .toolbar .search-box i {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: rgba(200,216,232,0.35); font-size: 14px;
+    }
+    .btn-create {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border: none; border-radius: 8px;
+      background: linear-gradient(135deg,#1a6fa8,#3498db);
+      color: #fff; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-create:hover { filter: brightness(1.15); transform: translateY(-1px); }
+
+    /* ── 表格面板 ── */
+    .panel {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(52,152,219,0.2);
+      border-radius: 12px; overflow: hidden;
+    }
+    .panel-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(52,152,219,0.15);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel-header h3 { font-size: 15px; font-weight: 600; color: #e0e8f0; margin: 0; }
+
+    .table-dark-custom {
+      width: 100%; margin: 0;
+      color: #c8d8e8;
+    }
+    .table-dark-custom thead th {
+      background: rgba(13,33,55,0.8);
+      border-bottom: 1px solid rgba(52,152,219,0.2);
+      color: rgba(200,216,232,0.6);
+      font-size: 12px; font-weight: 600;
+      padding: 12px 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .table-dark-custom tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(52,152,219,0.08);
+      font-size: 13px;
+      vertical-align: middle;
+    }
+    .table-dark-custom tbody tr {
+      transition: background 0.15s;
+    }
+    .table-dark-custom tbody tr:hover {
+      background: rgba(52,152,219,0.08);
+    }
+    .table-dark-custom tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* ── 角色标签 ── */
+    .role-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    }
+    .role-badge.admin {
+      background: rgba(52,152,219,0.2);
+      border: 1px solid rgba(52,152,219,0.4);
+      color: #5dade2;
+    }
+    .role-badge.user {
+      background: rgba(200,216,232,0.08);
+      border: 1px solid rgba(200,216,232,0.15);
+      color: rgba(200,216,232,0.6);
+    }
+
+    /* ── 删除按钮 ── */
+    .btn-del {
+      background: none; border: 1px solid rgba(231,76,60,0.3);
+      color: rgba(231,76,60,0.7); border-radius: 6px;
+      padding: 4px 12px; font-size: 12px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-del:hover { background: rgba(231,76,60,0.15); color: #ff6b6b; border-color: rgba(231,76,60,0.6); }
+    .btn-del:disabled {
+      opacity: 0.3; cursor: not-allowed;
+    }
+    .btn-del:disabled:hover { background: none; color: rgba(231,76,60,0.7); border-color: rgba(231,76,60,0.3); }
+
+    /* ── 空状态 ── */
+    .empty-state {
+      text-align: center; padding: 48px 20px; color: rgba(200,216,232,0.3);
+    }
+    .empty-state i { font-size: 40px; margin-bottom: 12px; display: block; }
+    .empty-state p { font-size: 14px; margin: 0; }
+
+    /* ── Modal 深色主题 ── */
+    .modal-content {
+      background: #0f2744;
+      border: 1px solid rgba(52,152,219,0.3);
+      border-radius: 12px;
+      color: #c8d8e8;
+    }
+    .modal-header {
+      border-bottom: 1px solid rgba(52,152,219,0.2);
+      padding: 16px 20px;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: #e0e8f0; }
+    .modal-header .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      border-top: 1px solid rgba(52,152,219,0.2);
+      padding: 12px 20px;
+    }
+
+    /* ── 表单 ── */
+    .form-label {
+      font-size: 13px; font-weight: 600; color: rgba(200,216,232,0.7);
+      margin-bottom: 6px;
+    }
+    .form-control, .form-select {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(52,152,219,0.25);
+      border-radius: 8px; color: #c8d8e8;
+      font-size: 13px; padding: 8px 14px;
+      transition: border-color 0.2s;
+    }
+    .form-control:focus, .form-select:focus {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(52,152,219,0.6);
+      color: #c8d8e8;
+      box-shadow: 0 0 0 2px rgba(52,152,219,0.15);
+    }
+    .form-control::placeholder { color: rgba(200,216,232,0.3); }
+    .form-select option { background: #0f2744; color: #c8d8e8; }
+
+    .btn-cancel {
+      background: rgba(200,216,232,0.08);
+      border: 1px solid rgba(200,216,232,0.15);
+      color: rgba(200,216,232,0.6);
+      border-radius: 8px; padding: 8px 20px; font-size: 13px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-cancel:hover { background: rgba(200,216,232,0.12); color: #c8d8e8; }
+    .btn-submit {
+      background: linear-gradient(135deg,#1a6fa8,#3498db);
+      border: none; color: #fff; border-radius: 8px;
+      padding: 8px 24px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-submit:hover { filter: brightness(1.15); }
+    .btn-danger-confirm {
+      background: linear-gradient(135deg,#c0392b,#e74c3c);
+      border: none; color: #fff; border-radius: 8px;
+      padding: 8px 24px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-danger-confirm:hover { filter: brightness(1.15); }
+
+    /* ── 提示 toast ── */
+    .toast-container {
+      position: fixed; top: 20px; right: 20px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .custom-toast {
+      padding: 12px 20px; border-radius: 8px; font-size: 13px;
+      display: flex; align-items: center; gap: 8px;
+      animation: slideIn 0.3s ease;
+      min-width: 240px;
+    }
+    .custom-toast.success {
+      background: rgba(39,174,96,0.2); border: 1px solid rgba(39,174,96,0.4); color: #55efc4;
+    }
+    .custom-toast.error {
+      background: rgba(231,76,60,0.2); border: 1px solid rgba(231,76,60,0.4); color: #ff6b6b;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(60px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ── 用户数量 ── */
+    .user-count {
+      font-size: 12px; color: rgba(200,216,232,0.4);
+    }
+
+    .mobile-header { display:none; position:fixed; top:0; left:0; right:0; height:50px; background:rgba(13,33,55,0.98); border-bottom:1px solid rgba(52,152,219,0.2); z-index:200; align-items:center; padding:0 12px; }
+    .mobile-header .menu-btn { background:none; border:none; color:#3498db; font-size:22px; cursor:pointer; padding:4px 8px; }
+    .mobile-header .title { flex:1; text-align:center; font-size:14px; font-weight:600; color:#e0e8f0; }
+    .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99; }
+    .sidebar-overlay.active { display:block; }
+    @media (max-width:768px) {
+      .mobile-header { display:flex; }
+      .sidebar { transform:translateX(-100%); transition:transform 0.3s ease; z-index:300; }
+      .sidebar.open { transform:translateX(0); }
+      .main-content { margin-left:0; padding:60px 12px 16px; }
+      .page-header h2 { font-size:17px; }
+      table { font-size:12px; }
+      thead th, tbody td { padding:8px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="mobile-header">
+  <button class="menu-btn" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+  <span class="title">用户管理</span>
+  <span style="width:38px"></span>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<!-- 侧边栏 -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon"><i class="bi bi-shield-check"></i></div>
+    <span>水域溺水<br/>防控AI系统</span>
+  </div>
+  <nav class="mt-2">
+    <div class="nav-item"><a href="dashboard.html"><i class="bi bi-display"></i>监控大屏</a></div>
+    <div class="nav-item"><a href="alarms.html"><i class="bi bi-bell"></i>预警记录</a></div>
+    <div class="nav-item"><a href="devices.html"><i class="bi bi-camera-video"></i>设备管理</a></div>
+    <div class="nav-item"><a href="users.html" class="active"><i class="bi bi-people"></i>用户管理</a></div>
+    <div class="nav-item"><a href="settings.html"><i class="bi bi-gear"></i>系统设置</a></div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar"><i class="bi bi-person"></i></div>
+      <span id="sidebarUser">管理员</span>
+    </div>
+    <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-left me-1"></i>退出登录</button>
+  </div>
+</div>
+
+<!-- 主内容 -->
+<div class="main-content">
+  <div class="page-header">
+    <h2><i class="bi bi-people me-2" style="color:#3498db"></i>用户管理</h2>
+    <div class="time-badge" id="currentTime">--:--:--</div>
+  </div>
+
+  <!-- 操作栏 -->
+  <div class="toolbar">
+    <div class="search-box">
+      <i class="bi bi-search"></i>
+      <input type="text" id="searchInput" placeholder="按手机号搜索..." oninput="filterUsers()" />
+    </div>
+    <button class="btn-create" onclick="openCreateModal()">
+      <i class="bi bi-plus-lg"></i>创建用户
+    </button>
+  </div>
+
+  <!-- 用户列表 -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3><i class="bi bi-list-ul me-2"></i>用户列表</h3>
+      <span class="user-count" id="userCount">共 0 个用户</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="table-dark-custom">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>手机号</th>
+            <th>角色</th>
+            <th>昵称</th>
+            <th>创建时间</th>
+            <th style="text-align:center;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <i class="bi bi-arrow-repeat"></i>
+                <p>加载中...</p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 创建用户弹窗 -->
+<div class="modal fade" id="createModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>创建用户</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">手机号 <span style="color:#e74c3c">*</span></label>
+          <input type="text" class="form-control" id="createPhone" placeholder="请输入手机号" maxlength="11" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">密码 <span style="color:#e74c3c">*</span></label>
+          <input type="password" class="form-control" id="createPassword" placeholder="请输入密码" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">角色 <span style="color:#e74c3c">*</span></label>
+          <select class="form-select" id="createRole">
+            <option value="user">普通用户</option>
+            <option value="admin">管理员</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label">昵称</label>
+          <input type="text" class="form-control" id="createNickname" placeholder="可选，不填则默认显示手机号" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn-submit" onclick="createUser()">确认创建</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2" style="color:#e74c3c"></i>确认删除</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:14px;margin:0;">确定要删除用户 <strong id="deleteUserName" style="color:#5dade2"></strong> 吗？此操作不可撤销。</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn-danger-confirm" onclick="confirmDelete()">确认删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast 容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const API_BASE = localStorage.getItem('api_base') || 'https://gills-register-prescribe.ngrok-free.dev';
+
+  function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  }
+
+  // ── 全局状态 ──
+  let allUsers = [];
+  let currentUser = null;
+  let deleteTargetId = null;
+
+  // ── 鉴权检查 ──
+  (function checkAuth() {
+    const u = localStorage.getItem('waterGuardUser') || sessionStorage.getItem('waterGuardUser');
+    if (!u) { window.location.href = 'index.html'; return; }
+    try {
+      currentUser = JSON.parse(u);
+      document.getElementById('sidebarUser').textContent = currentUser.nickname || currentUser.phone || '管理员';
+    } catch(_) {
+      window.location.href = 'index.html';
+    }
+  })();
+
+  function logout() {
+    localStorage.removeItem('waterGuardUser');
+    sessionStorage.removeItem('waterGuardUser');
+    window.location.href = 'index.html';
+  }
+
+  // ── 实时时钟 ──
+  function updateClock() {
+    document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('zh-CN');
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── Toast 提示 ──
+  function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+    const toast = document.createElement('div');
+    toast.className = 'custom-toast ' + type;
+    toast.innerHTML = '<i class="bi ' + icon + '"></i><span>' + message + '</span>';
+    container.appendChild(toast);
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(60px)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(function() { toast.remove(); }, 300);
+    }, 3000);
+  }
+
+  // ── 获取鉴权 Headers ──
+  function getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (currentUser && currentUser.token) {
+      headers['Authorization'] = 'Bearer ' + currentUser.token;
+    }
+    return headers;
+  }
+
+  // ── 加载用户列表 ──
+  async function loadUsers() {
+    try {
+      const resp = await fetch(API_BASE + '/api/users', {
+        headers: getAuthHeaders()
+      });
+      if (!resp.ok) {
+        showToast('加载用户列表失败 (' + resp.status + ')', 'error');
+        return;
+      }
+      allUsers = await resp.json();
+      if (!Array.isArray(allUsers)) {
+        allUsers = [];
+      }
+      renderUsers(allUsers);
+    } catch (e) {
+      showToast('网络错误，无法加载用户列表', 'error');
+      allUsers = [];
+      renderUsers([]);
+    }
+  }
+
+  // ── 渲染用户表格 ──
+  function renderUsers(users) {
+    const tbody = document.getElementById('userTableBody');
+    const countEl = document.getElementById('userCount');
+    countEl.textContent = '共 ' + users.length + ' 个用户';
+
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="bi bi-people"></i><p>暂无用户数据</p></div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = users.map(function(u) {
+      const isSelf = currentUser && String(u.id) === String(currentUser.id);
+      const roleBadge = u.role === 'admin'
+        ? '<span class="role-badge admin"><i class="bi bi-shield-lock"></i>管理员</span>'
+        : '<span class="role-badge user"><i class="bi bi-person"></i>普通用户</span>';
+      const nickname = u.nickname || '--';
+      const createdAt = formatTime(u.created_at);
+      const deleteBtn = isSelf
+        ? '<button class="btn-del" disabled title="不能删除自己"><i class="bi bi-trash3 me-1"></i>删除</button>'
+        : '<button class="btn-del" onclick="openDeleteModal(' + u.id + ', \'' + escapeHtml(u.phone) + '\')"><i class="bi bi-trash3 me-1"></i>删除</button>';
+
+      return '<tr>' +
+        '<td>' + u.id + '</td>' +
+        '<td style="font-family:monospace;letter-spacing:0.5px;">' + escapeHtml(u.phone) + '</td>' +
+        '<td>' + roleBadge + '</td>' +
+        '<td>' + escapeHtml(nickname) + '</td>' +
+        '<td style="color:rgba(200,216,232,0.5);">' + createdAt + '</td>' +
+        '<td style="text-align:center;">' + deleteBtn + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // ── 搜索过滤 ──
+  function filterUsers() {
+    const keyword = document.getElementById('searchInput').value.trim();
+    if (!keyword) {
+      renderUsers(allUsers);
+      return;
+    }
+    const filtered = allUsers.filter(function(u) {
+      return u.phone && u.phone.indexOf(keyword) !== -1;
+    });
+    renderUsers(filtered);
+  }
+
+  // ── 创建用户 ──
+  function openCreateModal() {
+    document.getElementById('createPhone').value = '';
+    document.getElementById('createPassword').value = '';
+    document.getElementById('createRole').value = 'user';
+    document.getElementById('createNickname').value = '';
+    var modal = new bootstrap.Modal(document.getElementById('createModal'));
+    modal.show();
+  }
+
+  async function createUser() {
+    const phone = document.getElementById('createPhone').value.trim();
+    const password = document.getElementById('createPassword').value;
+    const role = document.getElementById('createRole').value;
+    const nickname = document.getElementById('createNickname').value.trim();
+
+    // 校验
+    if (!phone) { showToast('请输入手机号', 'error'); return; }
+    if (!/^1\d{10}$/.test(phone)) { showToast('手机号格式不正确（需11位）', 'error'); return; }
+    if (!password) { showToast('请输入密码', 'error'); return; }
+    if (password.length < 4) { showToast('密码至少4位', 'error'); return; }
+
+    const body = { phone: phone, password: password, role: role };
+    if (nickname) { body.nickname = nickname; }
+
+    try {
+      const resp = await fetch(API_BASE + '/api/users', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(function() { return {}; });
+        showToast(errData.detail || '创建失败 (' + resp.status + ')', 'error');
+        return;
+      }
+      showToast('用户创建成功', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('createModal')).hide();
+      loadUsers();
+    } catch (e) {
+      showToast('网络错误，创建失败', 'error');
+    }
+  }
+
+  // ── 删除用户 ──
+  function openDeleteModal(userId, phone) {
+    deleteTargetId = userId;
+    document.getElementById('deleteUserName').textContent = phone;
+    var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+  }
+
+  async function confirmDelete() {
+    if (deleteTargetId === null) return;
+
+    try {
+      const resp = await fetch(API_BASE + '/api/users/' + deleteTargetId, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(function() { return {}; });
+        showToast(errData.detail || '删除失败 (' + resp.status + ')', 'error');
+        return;
+      }
+      showToast('用户已删除', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+      deleteTargetId = null;
+      loadUsers();
+    } catch (e) {
+      showToast('网络错误，删除失败', 'error');
+    }
+  }
+
+  // ── 工具函数 ──
+  function formatTime(t) {
+    if (!t) return '--';
+    return t.length > 16 ? t.substring(0, 16) : t;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  // ── 初始化 ──
+  loadUsers();
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "pages": [
+    "pages/dashboard/dashboard",
+    "pages/login/login",
+    "pages/alarms/alarms",
+    "pages/devices/devices",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#080f1e",
+    "navigationBarTitleText": "水域防控系统",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#080f1e"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#5a7a96",
+    "selectedColor": "#42a5f5",
+    "backgroundColor": "#080f1e",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/dashboard/dashboard",
+        "text": "监控",
+        "iconPath": "assets/icons/monitor.png",
+        "selectedIconPath": "assets/icons/monitor_active.png"
+      },
+      {
+        "pagePath": "pages/alarms/alarms",
+        "text": "预警",
+        "iconPath": "assets/icons/alarm.png",
+        "selectedIconPath": "assets/icons/alarm_active.png"
+      },
+      {
+        "pagePath": "pages/devices/devices",
+        "text": "设备",
+        "iconPath": "assets/icons/device.png",
+        "selectedIconPath": "assets/icons/device_active.png"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "设置",
+        "iconPath": "assets/icons/settings.png",
+        "selectedIconPath": "assets/icons/settings_active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

@@ -1,0 +1,165 @@
+<!-- pages/dashboard/dashboard.wxml -->
+<view class="page-container">
+
+  <!-- WS 状态条 -->
+  <view class="ws-bar {{wsConnected ? 'connected' : 'disconnected'}}">
+    <view class="ws-dot"></view>
+    <text>{{wsConnected ? '实时连接已建立' : '正在连接实时服务...'}}</text>
+  </view>
+
+  <!-- 统计卡片 -->
+  <view class="stat-grid">
+    <view class="stat-card blue">
+      <view class="stat-icon-wrap">
+        <text>📹</text>
+      </view>
+      <view class="stat-body">
+        <text class="stat-val">{{stats.online_devices}}</text>
+        <text class="stat-label">在线设备</text>
+      </view>
+    </view>
+    <view class="stat-card red">
+      <view class="stat-icon-wrap">
+        <text>🚨</text>
+      </view>
+      <view class="stat-body">
+        <text class="stat-val">{{stats.today_urgent}}</text>
+        <text class="stat-label">今日紧急</text>
+      </view>
+    </view>
+    <view class="stat-card" style="background:rgba(52,152,219,0.15);border:1px solid rgba(52,152,219,0.3)">
+      <view class="stat-icon-wrap">
+        <text>📝</text>
+      </view>
+      <view class="stat-body">
+        <text class="stat-val">{{stats.today_records}}</text>
+        <text class="stat-label">今日记录</text>
+      </view>
+    </view>
+    <view class="stat-card green">
+      <view class="stat-icon-wrap">
+        <text>👥</text>
+      </view>
+      <view class="stat-body">
+        <text class="stat-val">{{stats.person_count}}</text>
+        <text class="stat-label">检测人数</text>
+      </view>
+    </view>
+    <view class="stat-card purple">
+      <view class="stat-icon-wrap">
+        <text>⏱️</text>
+      </view>
+      <view class="stat-body">
+        <text class="stat-val">{{stats.run_hours}}</text>
+        <text class="stat-label">运行时长(h)</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ═══════ 多摄像头监控区 ═══════ -->
+
+  <!-- 网格模式（总屏） -->
+  <view wx:if="{{gridMode}}" class="card">
+    <view class="card-header">
+      <text class="card-title">📡 多路视频监控</text>
+      <view class="camera-header-right">
+        <view class="live-badge"><text>● LIVE</text></view>
+        <view class="refresh-btn" bindtap="onRefreshCameras">
+          <text>↻ 刷新</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 摄像头网格 -->
+    <view class="camera-grid grid-{{cameras.length}}">
+      <view
+        wx:for="{{cameras}}"
+        wx:key="camera_id"
+        class="camera-cell"
+        bindtap="onCameraTap"
+        data-id="{{item.camera_id}}"
+      >
+        <image
+          src="{{item.snapshotUrl}}"
+          mode="aspectFill"
+          class="camera-preview"
+          lazy-load="{{false}}"
+        />
+        <view class="camera-label">
+          <view class="status-dot {{item.status}}"></view>
+          <text>{{item.name}}</text>
+        </view>
+        <view wx:if="{{item.status !== 'online'}}" class="offline-mask">
+          <text>设备离线</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view wx:if="{{cameras.length === 0 && !cameraLoading}}" class="no-camera">
+      <text class="no-camera-icon">📷</text>
+      <text>暂无在线摄像头</text>
+      <view class="retry-link" bindtap="onRefreshCameras">
+        <text>点击刷新</text>
+      </view>
+    </view>
+
+    <!-- 加载状态 -->
+    <view wx:if="{{cameraLoading}}" class="camera-loading">
+      <text>正在加载摄像头...</text>
+    </view>
+  </view>
+
+  <!-- 全屏模式（单屏） -->
+  <view wx:if="{{!gridMode && activeCamera}}" class="fullscreen-view">
+    <view class="fullscreen-header">
+      <view bindtap="onBackToGrid" class="back-btn">
+        <text>← 返回网格</text>
+      </view>
+      <text class="fullscreen-title">{{activeCamera.name}}</text>
+      <view class="status-dot {{activeCamera.status}}"></view>
+    </view>
+    <view class="fullscreen-img-wrap">
+      <image
+        src="{{activeCamera.snapshotUrl}}"
+        mode="aspectFit"
+        class="fullscreen-img"
+        lazy-load="{{false}}"
+      />
+      <view wx:if="{{activeCamera.status !== 'online'}}" class="fullscreen-offline">
+        <text class="fullscreen-offline-icon">📷</text>
+        <text>设备离线</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 实时预警列表 -->
+  <view class="card">
+    <view class="card-header">
+      <text class="card-title">🔔 实时预警</text>
+      <text class="alarm-count">{{alarmList.length}} 条</text>
+    </view>
+    <view wx:if="{{loading}}" class="loading-state">加载中...</view>
+    <view wx:elif="{{alarmList.length === 0}}" class="empty-state">暂无预警记录</view>
+    <block wx:else>
+      <view
+        wx:for="{{alarmList}}"
+        wx:key="id"
+        class="alarm-item"
+      >
+        <view class="alarm-left-bar {{item.level}}"></view>
+        <view class="alarm-content">
+          <view class="alarm-top">
+            <text class="alarm-msg">{{item.message || '检测到异常'}}</text>
+            <text class="badge-{{item.level || 'warning'}}">{{item.levelLabel}}</text>
+          </view>
+          <view class="alarm-bottom">
+            <text class="alarm-meta">📍 {{item.location || '未知位置'}}</text>
+            <text class="alarm-meta">🕐 {{item.time ? item.time.substring(0,16) : '--'}}</text>
+          </view>
+        </view>
+      </view>
+    </block>
+  </view>
+
+</view>

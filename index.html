@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>水域溺水防控AI预警系统 - 登录</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0c1929 0%, #0d2137 50%, #0c1929 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+    }
+    .bg-decor {
+      position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+    }
+    .bg-decor .circle {
+      position: absolute; border-radius: 50%;
+      background: radial-gradient(circle, rgba(52,152,219,0.15), transparent 70%);
+    }
+    .bg-decor .c1 { width: 500px; height: 500px; top: -100px; left: -100px; }
+    .bg-decor .c2 { width: 400px; height: 400px; bottom: -80px; right: -80px; }
+
+    .login-card {
+      position: relative; z-index: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(52,152,219,0.3);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%; max-width: 420px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .login-logo {
+      text-align: center; margin-bottom: 32px;
+    }
+    .login-logo .icon-wrap {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: linear-gradient(135deg, #1a6fa8, #3498db);
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+      box-shadow: 0 0 30px rgba(52,152,219,0.5);
+    }
+    .login-logo .icon-wrap i { font-size: 32px; color: #fff; }
+    .login-logo h1 { font-size: 20px; color: #e0e8f0; font-weight: 700; }
+    .login-logo p { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+
+    .form-label { color: rgba(255,255,255,0.7); font-size: 14px; margin-bottom: 6px; }
+    .form-control {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(52,152,219,0.3);
+      color: #e0e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      transition: all 0.2s;
+    }
+    .form-control:focus {
+      background: rgba(255,255,255,0.09);
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52,152,219,0.2);
+      color: #fff;
+    }
+    .form-control::placeholder { color: rgba(255,255,255,0.25); }
+    .input-group .input-icon {
+      background: rgba(52,152,219,0.15);
+      border: 1px solid rgba(52,152,219,0.3);
+      border-right: none;
+      color: #3498db;
+      border-radius: 8px 0 0 8px;
+      padding: 0 12px;
+      display: flex; align-items: center;
+    }
+    .input-group .form-control { border-radius: 0 8px 8px 0 !important; }
+
+    .remember-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 16px 0;
+    }
+    .form-check-label { color: rgba(255,255,255,0.5); font-size: 13px; }
+    .form-check-input:checked { background-color: #3498db; border-color: #3498db; }
+
+    .btn-login {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #1a6fa8, #3498db);
+      border: none; border-radius: 8px;
+      color: #fff; font-size: 16px; font-weight: 600;
+      letter-spacing: 2px;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 15px rgba(52,152,219,0.4);
+    }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(52,152,219,0.6); }
+    .btn-login:active { transform: translateY(0); }
+    .btn-login:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .alert-msg {
+      margin-top: 16px; padding: 10px 14px;
+      border-radius: 8px; font-size: 13px; text-align: center;
+      display: none;
+    }
+    .alert-msg.error { background: rgba(231,76,60,0.15); border: 1px solid rgba(231,76,60,0.4); color: #ff6b6b; }
+    .alert-msg.success { background: rgba(39,174,96,0.15); border: 1px solid rgba(39,174,96,0.4); color: #55efc4; }
+    .alert-msg.warn { background: rgba(241,196,15,0.15); border: 1px solid rgba(241,196,15,0.4); color: #f1c40f; }
+
+    .footer-tip { text-align: center; margin-top: 24px; color: rgba(255,255,255,0.25); font-size: 12px; }
+
+    /* ── 手机端适配 ── */
+    @media (max-width: 480px) {
+      .login-card { padding: 32px 20px; margin: 16px; max-width: 100%; }
+      .login-logo h1 { font-size: 17px; }
+      .login-logo .icon-wrap { width: 56px; height: 56px; }
+      .login-logo .icon-wrap i { font-size: 24px; }
+      .footer-tip { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-decor">
+    <div class="circle c1"></div>
+    <div class="circle c2"></div>
+  </div>
+
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon-wrap"><i class="bi bi-shield-check"></i></div>
+      <h1>水域溺水防控AI预警系统</h1>
+      <p>WaterGuard Intelligent Surveillance Platform</p>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">手机号</label>
+      <div class="input-group">
+        <span class="input-icon"><i class="bi bi-phone"></i></span>
+        <input type="tel" class="form-control" id="phone" placeholder="请输入手机号" maxlength="11" />
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">密码</label>
+      <div class="input-group">
+        <span class="input-icon"><i class="bi bi-lock"></i></span>
+        <input type="password" class="form-control" id="password" placeholder="请输入密码" />
+      </div>
+    </div>
+
+    <div class="remember-row">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="remember" />
+        <label class="form-check-label" for="remember">记住7天</label>
+      </div>
+    </div>
+
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+      <i class="bi bi-box-arrow-in-right me-2"></i>登 录
+    </button>
+
+    <div class="alert-msg" id="alertMsg"></div>
+
+    <p class="footer-tip">默认账号：13800138000 / 123456 &nbsp;|&nbsp; 离线临时：18723616344 / 123456</p>
+  </div>
+
+  <script>
+    const API_BASE = localStorage.getItem('api_base') || 'https://gills-register-prescribe.ngrok-free.dev';
+
+    // ── 检查是否已登录 ──────────────────────────────────────────────────────
+    (function checkLogin() {
+      const stored = localStorage.getItem('waterGuardUser') || sessionStorage.getItem('waterGuardUser');
+      if (stored) {
+        try {
+          const user = JSON.parse(stored);
+          if (user && user.id) {
+            window.location.href = 'dashboard.html';
+          }
+        } catch (_) { /* 忽略 */ }
+      }
+    })();
+
+    function showAlert(msg, type) {
+      const el = document.getElementById('alertMsg');
+      el.textContent = msg;
+      el.className = 'alert-msg ' + type;
+      el.style.display = 'block';
+    }
+
+    async function doLogin() {
+      const phone = document.getElementById('phone').value.trim();
+      const password = document.getElementById('password').value;
+      const remember = document.getElementById('remember').checked;
+      const btn = document.getElementById('loginBtn');
+
+      if (!phone) { showAlert('请输入手机号', 'error'); return; }
+      if (!password) { showAlert('请输入密码', 'error'); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>登录中...';
+
+      try {
+        const resp = await fetch(`${API_BASE}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, password }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showAlert('登录成功，正在跳转...', 'success');
+          const userJson = JSON.stringify(data.data.user);
+          if (remember) {
+            localStorage.setItem('waterGuardUser', userJson);
+          } else {
+            sessionStorage.setItem('waterGuardUser', userJson);
+          }
+          setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
+        } else {
+          showAlert(data.msg || '手机号或密码错误', 'error');
+        }
+      } catch (err) {
+        // ── 离线临时登录：服务器无法连接时，允许使用预设临时账号登录 ──
+        const OFFLINE_PHONE = '18723616344';
+        const OFFLINE_PWD   = '123456';
+        if (phone === OFFLINE_PHONE && password === OFFLINE_PWD) {
+          showAlert('⚠️ 服务器离线，以临时账号登录', 'warn');
+          const offlineUser = JSON.stringify({
+            id: -1,
+            phone: OFFLINE_PHONE,
+            role: 'user',
+            nickname: '临时用户（离线）',
+            offline: true
+          });
+          if (remember) {
+            localStorage.setItem('waterGuardUser', offlineUser);
+          } else {
+            sessionStorage.setItem('waterGuardUser', offlineUser);
+          }
+          setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
+        } else {
+          showAlert('无法连接服务器，且非临时账号', 'error');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>登 录';
+      }
+    }
+
+    // 回车触发登录
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  </script>
+</body>
+</html>

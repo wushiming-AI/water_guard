@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>系统设置 - 水域溺水防控AI预警系统</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { background:#0c1929; color:#c8d8e8; font-family:'Microsoft YaHei',Arial,sans-serif; min-height:100vh; }
+    .sidebar { width:220px; min-height:100vh; background:rgba(13,33,55,0.95); border-right:1px solid rgba(52,152,219,0.2); position:fixed; top:0; left:0; z-index:100; display:flex; flex-direction:column; }
+    .sidebar-brand { padding:20px 16px; border-bottom:1px solid rgba(52,152,219,0.2); display:flex; align-items:center; gap:10px; }
+    .sidebar-brand .icon { width:36px; height:36px; border-radius:8px; background:linear-gradient(135deg,#1a6fa8,#3498db); display:flex; align-items:center; justify-content:center; }
+    .sidebar-brand .icon i { color:#fff; font-size:18px; }
+    .sidebar-brand span { font-size:14px; font-weight:700; color:#e0e8f0; line-height:1.3; }
+    .nav-item a { display:flex; align-items:center; gap:10px; padding:12px 20px; color:rgba(200,216,232,0.6); text-decoration:none; font-size:14px; transition:all 0.2s; border-left:3px solid transparent; }
+    .nav-item a:hover, .nav-item a.active { color:#3498db; background:rgba(52,152,219,0.1); border-left-color:#3498db; }
+    .nav-item a i { width:18px; text-align:center; }
+    .sidebar-footer { margin-top:auto; padding:16px 20px; border-top:1px solid rgba(52,152,219,0.15); font-size:12px; color:rgba(200,216,232,0.4); }
+    .sidebar-footer .user-info { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .sidebar-footer .avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#1a6fa8,#3498db); display:flex; align-items:center; justify-content:center; }
+    .sidebar-footer .avatar i { font-size:13px; color:#fff; }
+    .btn-logout { background:none; border:none; color:rgba(200,216,232,0.4); font-size:12px; cursor:pointer; padding:0; }
+    .btn-logout:hover { color:#ff6b6b; }
+
+    .main-content { margin-left:220px; padding:24px; max-width:900px; }
+    .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+    .page-header h2 { font-size:20px; font-weight:700; color:#e0e8f0; }
+
+    .settings-section {
+      background:rgba(255,255,255,0.03); border:1px solid rgba(52,152,219,0.2);
+      border-radius:12px; margin-bottom:20px; overflow:hidden;
+    }
+    .section-header {
+      padding:14px 20px; border-bottom:1px solid rgba(52,152,219,0.15);
+      display:flex; align-items:center; gap:10px;
+    }
+    .section-header i { color:#3498db; font-size:16px; }
+    .section-header h3 { font-size:15px; font-weight:600; color:#e0e8f0; margin:0; }
+    .section-body { padding:20px; }
+
+    .setting-item {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 0; border-bottom:1px solid rgba(52,152,219,0.08);
+    }
+    .setting-item:last-child { border-bottom:none; }
+    .setting-label { font-size:14px; color:#c8d8e8; }
+    .setting-desc { font-size:12px; color:rgba(200,216,232,0.4); margin-top:2px; }
+
+    /* 自定义 switch */
+    .switch { position:relative; width:46px; height:24px; cursor:pointer; }
+    .switch input { opacity:0; width:0; height:0; }
+    .switch-slider {
+      position:absolute; inset:0; background:rgba(255,255,255,0.1);
+      border-radius:12px; transition:0.3s;
+      border:1px solid rgba(52,152,219,0.3);
+    }
+    .switch-slider:before {
+      content:''; position:absolute; width:18px; height:18px;
+      left:2px; top:2px; background:#fff; border-radius:50%; transition:0.3s;
+    }
+    .switch input:checked + .switch-slider { background:#3498db; border-color:#3498db; }
+    .switch input:checked + .switch-slider:before { transform:translateX(22px); }
+
+    /* 滑块 */
+    .range-wrap { display:flex; align-items:center; gap:12px; }
+    .range-val { min-width:32px; text-align:right; font-size:13px; color:#3498db; font-weight:600; }
+    input[type=range] { -webkit-appearance:none; width:160px; height:4px; border-radius:2px; background:rgba(52,152,219,0.3); outline:none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#3498db; cursor:pointer; }
+
+    .form-control-dark {
+      background:rgba(255,255,255,0.06); border:1px solid rgba(52,152,219,0.3);
+      color:#e0e8f0; border-radius:8px; padding:8px 12px; font-size:13px; width:100%;
+    }
+    .form-control-dark:focus { outline:none; border-color:#3498db; }
+
+    .btn-save-all {
+      padding:10px 28px; background:linear-gradient(135deg,#1a6fa8,#3498db);
+      border:none; border-radius:8px; color:#fff; font-size:14px; cursor:pointer;
+      transition:opacity 0.2s; margin-top:4px;
+    }
+    .btn-save-all:hover { opacity:0.85; }
+    .btn-save-all:disabled { opacity:0.6; cursor:not-allowed; }
+
+    /* 密码修改展开区 */
+    .pwd-section { display:none; margin-top:16px; padding-top:16px; border-top:1px solid rgba(52,152,219,0.1); }
+    .pwd-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    .pwd-label { font-size:13px; color:rgba(200,216,232,0.6); margin-bottom:6px; display:block; }
+
+    .btn-link { background:none; border:none; color:#3498db; font-size:13px; cursor:pointer; padding:0; text-decoration:underline; }
+    .btn-link:hover { color:#74b9ff; }
+
+    .btn-logout-big {
+      padding:10px 28px; background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.3);
+      border-radius:8px; color:#ff6b6b; font-size:14px; cursor:pointer; transition:all 0.2s;
+    }
+    .btn-logout-big:hover { background:rgba(231,76,60,0.3); }
+
+    .toast-wrap { position:fixed; top:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+    .toast-item { padding:12px 20px; border-radius:8px; font-size:13px; animation:slideIn 0.3s ease; }
+    .toast-item.success { background:rgba(39,174,96,0.9); color:#fff; }
+    .toast-item.error { background:rgba(231,76,60,0.9); color:#fff; }
+    @keyframes slideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+
+    .mobile-header { display:none; position:fixed; top:0; left:0; right:0; height:50px; background:rgba(13,33,55,0.98); border-bottom:1px solid rgba(52,152,219,0.2); z-index:200; align-items:center; padding:0 12px; }
+    .mobile-header .menu-btn { background:none; border:none; color:#3498db; font-size:22px; cursor:pointer; padding:4px 8px; }
+    .mobile-header .title { flex:1; text-align:center; font-size:14px; font-weight:600; color:#e0e8f0; }
+    .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99; }
+    .sidebar-overlay.active { display:block; }
+    @media (max-width:768px) {
+      .mobile-header { display:flex; }
+      .sidebar { transform:translateX(-100%); transition:transform 0.3s ease; z-index:300; }
+      .sidebar.open { transform:translateX(0); }
+      .main-content { margin-left:0; padding:60px 12px 16px; max-width:100%; }
+      .page-header h2 { font-size:17px; }
+      .form-section { padding:16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="mobile-header">
+  <button class="menu-btn" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+  <span class="title">系统设置</span>
+  <span style="width:38px"></span>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon"><i class="bi bi-shield-check"></i></div>
+    <span>水域溺水<br/>防控AI系统</span>
+  </div>
+  <nav class="mt-2">
+    <div class="nav-item"><a href="dashboard.html"><i class="bi bi-display"></i>监控大屏</a></div>
+    <div class="nav-item"><a href="alarms.html"><i class="bi bi-bell"></i>预警记录</a></div>
+    <div class="nav-item"><a href="devices.html"><i class="bi bi-camera-video"></i>设备管理</a></div>
+    <div class="nav-item"><a href="users.html"><i class="bi bi-people"></i>用户管理</a></div>
+    <div class="nav-item"><a href="settings.html" class="active"><i class="bi bi-gear"></i>系统设置</a></div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar"><i class="bi bi-person"></i></div>
+      <span id="sidebarUser">管理员</span>
+    </div>
+    <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-left me-1"></i>退出登录</button>
+  </div>
+</div>
+
+<div class="main-content">
+  <div class="page-header">
+    <h2><i class="bi bi-gear me-2 text-primary"></i>系统设置</h2>
+  </div>
+
+  <!-- 服务配置 -->
+  <div class="settings-section">
+    <div class="section-header">
+      <i class="bi bi-hdd-network"></i>
+      <h3>服务配置</h3>
+    </div>
+    <div class="section-body">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">后端服务地址</div>
+          <div class="setting-desc">AI 检测后端的 HTTP 地址</div>
+        </div>
+        <input type="text" class="form-control-dark" id="serverUrl" style="width:260px" placeholder="https://gills-register-prescribe.ngrok-free.dev" />
+      </div>
+    </div>
+  </div>
+
+  <!-- 检测配置 -->
+  <div class="settings-section">
+    <div class="section-header">
+      <i class="bi bi-sliders"></i>
+      <h3>检测配置</h3>
+    </div>
+    <div class="section-body">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">预警灵敏度</div>
+          <div class="setting-desc">值越高越灵敏，可能增加误报率</div>
+        </div>
+        <div class="range-wrap">
+          <input type="range" id="sensitivity" min="1" max="100" value="80"
+            oninput="document.getElementById('sensitivityVal').textContent=this.value" />
+          <span class="range-val" id="sensitivityVal">80</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通知配置 -->
+  <div class="settings-section">
+    <div class="section-header">
+      <i class="bi bi-bell"></i>
+      <h3>通知配置</h3>
+    </div>
+    <div class="section-body">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">声音报警</div>
+          <div class="setting-desc">触发预警时播放报警声</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="soundAlarm" checked />
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">手机推送</div>
+          <div class="setting-desc">预警时向手机发送通知</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="pushNotify" checked />
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">自动录像</div>
+          <div class="setting-desc">预警触发时自动保存视频片段</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoRecord" />
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 保存按钮 -->
+  <button class="btn-save-all" id="saveBtn" onclick="saveSettings()">
+    <i class="bi bi-check-lg me-2"></i>保存配置
+  </button>
+
+  <!-- 密码修改 -->
+  <div class="settings-section" style="margin-top:20px">
+    <div class="section-header">
+      <i class="bi bi-key"></i>
+      <h3>安全设置</h3>
+    </div>
+    <div class="section-body">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">修改密码</div>
+          <div class="setting-desc">定期更换密码保护账号安全</div>
+        </div>
+        <button class="btn-link" onclick="togglePwdSection()">点击展开</button>
+      </div>
+      <div class="pwd-section" id="pwdSection">
+        <div class="pwd-row">
+          <div>
+            <span class="pwd-label">原密码</span>
+            <input type="password" class="form-control-dark" id="oldPwd" placeholder="请输入原密码" />
+          </div>
+          <div>
+            <span class="pwd-label">新密码</span>
+            <input type="password" class="form-control-dark" id="newPwd" placeholder="请输入新密码" />
+          </div>
+          <div>
+            <span class="pwd-label">确认新密码</span>
+            <input type="password" class="form-control-dark" id="confirmPwd" placeholder="再次输入新密码" />
+          </div>
+        </div>
+        <button class="btn-save-all" style="margin-top:12px" onclick="changePwd()">
+          <i class="bi bi-shield-lock me-2"></i>确认修改
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 退出登录 -->
+  <div class="settings-section" style="margin-top:20px">
+    <div class="section-header">
+      <i class="bi bi-box-arrow-left"></i>
+      <h3>账号操作</h3>
+    </div>
+    <div class="section-body">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">退出登录</div>
+          <div class="setting-desc">清除本地登录状态，返回登录页</div>
+        </div>
+        <button class="btn-logout-big" onclick="logout()">
+          <i class="bi bi-box-arrow-right me-2"></i>退出登录
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+  const API_BASE = localStorage.getItem('api_base') || 'https://gills-register-prescribe.ngrok-free.dev';
+
+  function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  }
+
+  (function checkAuth() {
+    const u = localStorage.getItem('waterGuardUser') || sessionStorage.getItem('waterGuardUser');
+    if (!u) { window.location.href = 'index.html'; return; }
+    try {
+      const user = JSON.parse(u);
+      document.getElementById('sidebarUser').textContent = user.nickname || user.phone || '管理员';
+      if (user.role !== 'admin') {
+        const usersNav = document.querySelector('a[href="users.html"]');
+        if (usersNav) usersNav.parentElement.style.display = 'none';
+      }
+    } catch(_) {}
+  })();
+
+  function logout() {
+    localStorage.removeItem('waterGuardUser'); sessionStorage.removeItem('waterGuardUser');
+    window.location.href = 'index.html';
+  }
+
+  function showToast(msg, type) {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = `toast-item ${type}`;
+    el.innerHTML = `<i class="bi bi-${type==='success'?'check-circle':'x-circle'} me-2"></i>${msg}`;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  // ── 加载已保存设置 ──────────────────────────────────────────────────────
+  async function loadSettings() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/settings`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.server_url) {
+        document.getElementById('serverUrl').value = data.server_url;
+        localStorage.setItem('api_base', data.server_url);
+      }
+      if (data.sensitivity) {
+        document.getElementById('sensitivity').value = data.sensitivity;
+        document.getElementById('sensitivityVal').textContent = data.sensitivity;
+      }
+      if (data.sound_alarm !== undefined) {
+        document.getElementById('soundAlarm').checked = data.sound_alarm === 'true';
+      }
+      if (data.push_notify !== undefined) {
+        document.getElementById('pushNotify').checked = data.push_notify === 'true';
+      }
+      if (data.auto_record !== undefined) {
+        document.getElementById('autoRecord').checked = data.auto_record === 'true';
+      }
+    } catch(_) {}
+  }
+  loadSettings();
+
+  // ── 保存配置 ─────────────────────────────────────────────────────────────
+  async function saveSettings() {
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
+    const serverUrl = document.getElementById('serverUrl').value.trim();
+    try {
+      const resp = await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: {
+            server_url: serverUrl || 'https://gills-register-prescribe.ngrok-free.dev',
+            sensitivity: String(document.getElementById('sensitivity').value),
+            sound_alarm: String(document.getElementById('soundAlarm').checked),
+            push_notify: String(document.getElementById('pushNotify').checked),
+            auto_record: String(document.getElementById('autoRecord').checked),
+          }
+        }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        if (serverUrl) localStorage.setItem('api_base', serverUrl);
+        showToast('配置已保存', 'success');
+      } else {
+        showToast('保存失败：' + (data.detail || '未知错误'), 'error');
+      }
+    } catch(_) {
+      showToast('请求失败，请检查网络', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>保存配置';
+    }
+  }
+
+  // ── 密码修改 ─────────────────────────────────────────────────────────────
+  function togglePwdSection() {
+    const s = document.getElementById('pwdSection');
+    s.style.display = s.style.display === 'block' ? 'none' : 'block';
+  }
+
+  async function changePwd() {
+    const oldPwd = document.getElementById('oldPwd').value;
+    const newPwd = document.getElementById('newPwd').value;
+    const confirmPwd = document.getElementById('confirmPwd').value;
+    if (!oldPwd || !newPwd) { showToast('请填写所有密码字段', 'error'); return; }
+    if (newPwd !== confirmPwd) { showToast('两次输入的新密码不一致', 'error'); return; }
+    if (newPwd.length < 6) { showToast('新密码长度不能少于6位', 'error'); return; }
+
+    const u = localStorage.getItem('waterGuardUser') || sessionStorage.getItem('waterGuardUser');
+    let phone = '13800138000';
+    try { phone = JSON.parse(u).phone || phone; } catch(_) {}
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, old_password: oldPwd, new_password: newPwd }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        showToast('密码修改成功，请重新登录', 'success');
+        document.getElementById('oldPwd').value = '';
+        document.getElementById('newPwd').value = '';
+        document.getElementById('confirmPwd').value = '';
+        setTimeout(logout, 2000);
+      } else {
+        showToast(data.msg || '密码修改失败', 'error');
+      }
+    } catch(_) {
+      showToast('请求失败', 'error');
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>泳池平面图 - 水域溺水防控AI预警系统</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #0c1929; color: #c8d8e8; font-family: 'Microsoft YaHei', Arial, sans-serif; min-height: 100vh; margin: 0; }
+
+    /* ── 侧边栏 ── */
+    .sidebar { width: 220px; min-height: 100vh; background: rgba(13,33,55,0.95); border-right: 1px solid rgba(52,152,219,0.2); position: fixed; top: 0; left: 0; z-index: 100; display: flex; flex-direction: column; }
+    .sidebar-brand { padding: 20px 16px; border-bottom: 1px solid rgba(52,152,219,0.2); display: flex; align-items: center; gap: 10px; }
+    .sidebar-brand .icon { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg,#1a6fa8,#3498db); display: flex; align-items: center; justify-content: center; }
+    .sidebar-brand .icon i { color:#fff; font-size:18px; }
+    .sidebar-brand span { font-size:14px; font-weight:700; color:#e0e8f0; line-height:1.3; }
+    .nav-item a { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: rgba(200,216,232,0.6); text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
+    .nav-item a:hover, .nav-item a.active { color: #3498db; background: rgba(52,152,219,0.1); border-left-color: #3498db; }
+    .nav-item a i { width: 18px; text-align: center; }
+    .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid rgba(52,152,219,0.15); font-size: 12px; color: rgba(200,216,232,0.4); }
+    .sidebar-footer .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .sidebar-footer .avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,#1a6fa8,#3498db); display: flex; align-items: center; justify-content: center; }
+    .sidebar-footer .avatar i { font-size:13px; color:#fff; }
+    .btn-logout { background: none; border: none; color: rgba(200,216,232,0.4); font-size: 12px; cursor: pointer; padding: 0; }
+    .btn-logout:hover { color: #ff6b6b; }
+
+    /* ── 主内容区 ── */
+    .main-content { margin-left: 220px; padding: 24px; display: flex; flex-direction: column; height: 100vh; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-shrink: 0; }
+    .page-header h2 { font-size: 20px; font-weight: 700; color: #e0e8f0; margin: 0; }
+    .page-header .time-badge { background: rgba(52,152,219,0.15); border: 1px solid rgba(52,152,219,0.3); border-radius: 20px; padding: 4px 14px; font-size: 13px; color: #3498db; }
+
+    /* ── 泳池布局选择 ── */
+    .pool-selector { display: flex; gap: 10px; margin-bottom: 16px; flex-shrink: 0; }
+    .pool-type-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(52,152,219,0.2); border-radius: 8px; padding: 8px 18px; color: #c8d8e8; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    .pool-type-btn:hover { border-color: rgba(52,152,219,0.5); background: rgba(52,152,219,0.1); }
+    .pool-type-btn.active { border-color: #3498db; background: rgba(52,152,219,0.2); color: #3498db; }
+
+    /* ── 主布局：地图 + 面板 ── */
+    .pool-layout { display: flex; gap: 16px; flex: 1; min-height: 0; }
+
+    /* ── 地图区域 ── */
+    .map-area { flex: 7; display: flex; flex-direction: column; background: rgba(255,255,255,0.03); border: 1px solid rgba(52,152,219,0.2); border-radius: 12px; overflow: hidden; position: relative; }
+    .map-header { padding: 10px 16px; border-bottom: 1px solid rgba(52,152,219,0.15); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .map-header h3 { font-size: 14px; font-weight: 600; color: #e0e8f0; margin: 0; }
+    .map-controls { display: flex; gap: 8px; align-items: center; }
+    .map-ctrl-btn { background: rgba(52,152,219,0.15); border: 1px solid rgba(52,152,219,0.3); border-radius: 6px; padding: 4px 12px; color: #3498db; font-size: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+    .map-ctrl-btn:hover { background: rgba(52,152,219,0.25); }
+    .map-ctrl-btn.active { background: rgba(52,152,219,0.3); border-color: #3498db; }
+    .map-ctrl-btn i { font-size: 13px; }
+
+    .map-canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+    .pool-svg { width: 100%; height: 100%; display: block; }
+
+    /* 热力图叠加层 */
+    .heatmap-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+
+    /* SVG 交互样式 */
+    .camera-icon-group { cursor: pointer; }
+    .camera-icon-group:hover .cam-icon-bg { fill: rgba(52,152,219,0.3); }
+    .camera-icon-group:hover .cam-fov-cone { fill-opacity: 0.2; }
+    .cam-fov-cone { transition: fill-opacity 0.3s; }
+    .zone-group:hover .zone-fill { fill-opacity: 0.25; }
+    .zone-label-bg { pointer-events: none; }
+
+    /* 报警标记动画 */
+    @keyframes alarmPulse {
+      0% { r: 12; opacity: 0.9; }
+      50% { r: 22; opacity: 0.4; }
+      100% { r: 12; opacity: 0.9; }
+    }
+    @keyframes alarmRing {
+      0% { r: 12; opacity: 0.6; stroke-width: 2; }
+      100% { r: 35; opacity: 0; stroke-width: 0.5; }
+    }
+    .alarm-marker-pulse { animation: alarmPulse 1.5s ease-in-out infinite; }
+    .alarm-marker-ring { animation: alarmRing 1.5s ease-out infinite; }
+
+    /* ── 右侧面板 ── */
+    .info-panel { flex: 3; display: flex; flex-direction: column; gap: 12px; min-width: 280px; }
+    .panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(52,152,219,0.2); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+    .panel-header { padding: 10px 16px; border-bottom: 1px solid rgba(52,152,219,0.15); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .panel-header h3 { font-size: 14px; font-weight: 600; color: #e0e8f0; margin: 0; display: flex; align-items: center; gap: 6px; }
+
+    /* 报警列表 */
+    .alarm-list { flex: 1; overflow-y: auto; padding: 8px 12px; max-height: 400px; }
+    .alarm-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border-bottom: 1px solid rgba(52,152,219,0.1); cursor: pointer; transition: background 0.2s; border-radius: 6px; }
+    .alarm-item:hover { background: rgba(52,152,219,0.08); }
+    .alarm-item.highlighted { background: rgba(52,152,219,0.15); border: 1px solid rgba(52,152,219,0.3); }
+    .alarm-item:last-child { border-bottom: none; }
+    .alarm-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .alarm-dot.urgent { background: #e74c3c; box-shadow: 0 0 6px rgba(231,76,60,0.8); }
+    .alarm-dot.warning { background: #f39c12; }
+    .alarm-dot.info { background: #3498db; }
+    .alarm-info .title { font-size: 12px; color: #c8d8e8; }
+    .alarm-info .meta { font-size: 11px; color: rgba(200,216,232,0.4); margin-top: 2px; }
+    .alarm-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-left: auto; flex-shrink: 0; }
+    .alarm-badge.urgent { background: rgba(231,76,60,0.2); color: #ff6b6b; }
+    .alarm-badge.warning { background: rgba(243,156,18,0.2); color: #f1c40f; }
+    .alarm-badge.info { background: rgba(52,152,219,0.2); color: #74b9ff; }
+    .alarm-snapshot { width: 48px; height: 36px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: #0a1520; }
+
+    .empty-tip { text-align: center; color: rgba(200,216,232,0.3); padding: 24px; font-size: 13px; }
+
+    /* 摄像头状态列表 */
+    .cam-status-list { padding: 8px 12px; }
+    .cam-status-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; border-bottom: 1px solid rgba(52,152,219,0.08); }
+    .cam-status-item:last-child { border-bottom: none; }
+    .cam-status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .cam-status-dot.online { background: #55efc4; box-shadow: 0 0 4px rgba(85,239,196,0.6); }
+    .cam-status-dot.offline { background: #636e72; }
+    .cam-status-name { color: #c8d8e8; flex: 1; }
+    .cam-status-zone { color: rgba(200,216,232,0.4); font-size: 11px; }
+
+    /* ── 底部状态栏 ── */
+    .bottom-bar { display: flex; align-items: center; gap: 20px; padding: 10px 16px; background: rgba(13,33,55,0.6); border-top: 1px solid rgba(52,152,219,0.15); border-radius: 0 0 12px 12px; font-size: 12px; color: rgba(200,216,232,0.5); flex-shrink: 0; margin-top: 0; }
+    .bottom-stat { display: flex; align-items: center; gap: 6px; }
+    .bottom-stat .val { color: #e0e8f0; font-weight: 600; }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-dot.red { background: #e74c3c; }
+    .legend-dot.orange { background: #f39c12; }
+    .legend-dot.green { background: #55efc4; }
+    .bottom-bar .spacer { flex: 1; }
+    .bottom-btn { background: rgba(52,152,219,0.15); border: 1px solid rgba(52,152,219,0.3); border-radius: 6px; padding: 4px 10px; color: #3498db; font-size: 11px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+    .bottom-btn:hover { background: rgba(52,152,219,0.25); }
+    .bottom-btn i { font-size: 12px; }
+
+    /* ── 截图按钮 ── */
+    .btn-screenshot { background: rgba(52,152,219,0.2); border: 1px solid rgba(52,152,219,0.4); color: #3498db; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+    .btn-screenshot:hover { background: rgba(52,152,219,0.3); }
+
+    /* ── 全屏模式 ── */
+    .map-fullscreen .sidebar { display: none; }
+    .map-fullscreen .main-content { margin-left: 0; }
+    .map-fullscreen .pool-layout { height: calc(100vh - 100px); }
+
+    /* ── 相机弹出层 ── */
+    .cam-popup { position: absolute; z-index: 50; background: rgba(13,33,55,0.97); border: 1px solid rgba(52,152,219,0.4); border-radius: 10px; padding: 12px; width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: none; }
+    .cam-popup.show { display: block; }
+    .cam-popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .cam-popup-title { font-size: 13px; font-weight: 600; color: #e0e8f0; }
+    .cam-popup-close { background: none; border: none; color: rgba(200,216,232,0.4); cursor: pointer; font-size: 16px; padding: 0; }
+    .cam-popup-close:hover { color: #ff6b6b; }
+    .cam-popup-img { width: 100%; aspect-ratio: 16/9; border-radius: 6px; object-fit: cover; background: #0a1520; margin-bottom: 8px; }
+    .cam-popup-meta { font-size: 11px; color: rgba(200,216,232,0.5); display: flex; gap: 10px; }
+
+    /* ── Toast ── */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast-msg { background: rgba(13,33,55,0.97); border: 1px solid rgba(52,152,219,0.4); border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #e0e8f0; animation: slideIn 0.3s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* ── 手机端适配 ── */
+    .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 50px; background: rgba(13,33,55,0.98); border-bottom: 1px solid rgba(52,152,219,0.2); z-index: 200; align-items: center; padding: 0 12px; }
+    .mobile-header .menu-btn { background: none; border: none; color: #3498db; font-size: 22px; cursor: pointer; padding: 4px 8px; }
+    .mobile-header .title { flex: 1; text-align: center; font-size: 14px; font-weight: 600; color: #e0e8f0; }
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
+    .sidebar-overlay.active { display: block; }
+
+    @media (max-width: 1024px) {
+      .pool-layout { flex-direction: column; }
+      .info-panel { flex-direction: row; flex: 0 0 auto; min-width: 0; }
+      .info-panel .panel { flex: 1; }
+      .alarm-list { max-height: 200px; }
+    }
+    @media (max-width: 768px) {
+      .mobile-header { display: flex; }
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; z-index: 300; }
+      .sidebar.open { transform: translateX(0); }
+      .main-content { margin-left: 0; padding: 60px 12px 16px; height: auto; min-height: 100vh; }
+      .pool-layout { flex-direction: column; }
+      .info-panel { flex-direction: column; min-width: 0; }
+      .pool-selector { flex-wrap: wrap; }
+      .page-header { flex-wrap: wrap; gap: 8px; }
+      .page-header h2 { font-size: 17px; }
+      .bottom-bar { flex-wrap: wrap; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 手机端顶栏 -->
+<div class="mobile-header">
+  <button class="menu-btn" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+  <span class="title">泳池平面图</span>
+  <span style="width:38px"></span>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<!-- 侧边栏 -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon"><i class="bi bi-shield-check"></i></div>
+    <span>水域溺水<br/>防控AI系统</span>
+  </div>
+  <nav class="mt-2">
+    <div class="nav-item"><a href="dashboard.html"><i class="bi bi-display"></i>监控大屏</a></div>
+    <div class="nav-item"><a href="pool_map.html" class="active"><i class="bi bi-map"></i>泳池平面图</a></div>
+    <div class="nav-item"><a href="alarms.html"><i class="bi bi-bell"></i>预警记录</a></div>
+    <div class="nav-item"><a href="devices.html"><i class="bi bi-camera-video"></i>设备管理</a></div>
+    <div class="nav-item"><a href="users.html"><i class="bi bi-people"></i>用户管理</a></div>
+    <div class="nav-item"><a href="settings.html"><i class="bi bi-gear"></i>系统设置</a></div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar"><i class="bi bi-person"></i></div>
+      <span id="sidebarUser">管理员</span>
+    </div>
+    <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-left me-1"></i>退出登录</button>
+  </div>
+</div>
+
+<!-- 主内容 -->
+<div class="main-content">
+  <div class="page-header">
+    <h2><i class="bi bi-map me-2" style="color:#3498db"></i>泳池平面图监控</h2>
+    <div class="time-badge" id="currentTime">--:--:--</div>
+  </div>
+
+  <!-- 泳池类型选择 -->
+  <div class="pool-selector">
+    <button class="pool-type-btn active" data-type="rectangle" onclick="switchPoolType('rectangle', this)">
+      <i class="bi bi-square me-1"></i>标准矩形泳池
+    </button>
+    <button class="pool-type-btn" data-type="irregular" onclick="switchPoolType('irregular', this)">
+      <i class="bi bi-pentagon me-1"></i>不规则形状泳池
+    </button>
+    <button class="pool-type-btn" data-type="composite" onclick="switchPoolType('composite', this)">
+      <i class="bi bi-layout-split me-1"></i>儿童池+成人池组合
+    </button>
+  </div>
+
+  <!-- 主布局 -->
+  <div class="pool-layout">
+    <!-- 地图区域 -->
+    <div class="map-area">
+      <div class="map-header">
+        <h3><i class="bi bi-geo-alt me-2"></i>泳池实时监控</h3>
+        <div class="map-controls">
+          <button class="map-ctrl-btn" id="btnHeatmap" onclick="toggleHeatmap()">
+            <i class="bi bi-fire"></i> 热力图
+          </button>
+          <button class="map-ctrl-btn" onclick="resetZoom()">
+            <i class="bi bi-arrows-fullscreen"></i> 重置视图
+          </button>
+          <button class="map-ctrl-btn" id="btnFullscreen" onclick="toggleFullscreen()">
+            <i class="bi bi-fullscreen"></i> 全屏
+          </button>
+        </div>
+      </div>
+      <div class="map-canvas-wrap" id="mapWrap">
+        <svg id="poolMap" viewBox="0 0 800 600" class="pool-svg" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <!-- 水面渐变 -->
+            <linearGradient id="waterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:rgba(30,144,255,0.15)" />
+              <stop offset="100%" style="stop-color:rgba(30,144,255,0.35)" />
+            </linearGradient>
+            <linearGradient id="deepWaterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:rgba(30,100,255,0.25)" />
+              <stop offset="100%" style="stop-color:rgba(20,60,200,0.45)" />
+            </linearGradient>
+            <!-- 报警标记渐变 -->
+            <radialGradient id="alarmGradUrgent">
+              <stop offset="0%" style="stop-color:#ff4757;stop-opacity:0.8" />
+              <stop offset="100%" style="stop-color:#e74c3c;stop-opacity:0.2" />
+            </radialGradient>
+            <radialGradient id="alarmGradWarning">
+              <stop offset="0%" style="stop-color:#f39c12;stop-opacity:0.6" />
+              <stop offset="100%" style="stop-color:#f39c12;stop-opacity:0.1" />
+            </radialGradient>
+          </defs>
+          <!-- 泳池内容由JS动态渲染 -->
+          <g id="poolBody"></g>
+          <g id="poolLanes"></g>
+          <g id="poolZones"></g>
+          <g id="lifeguardPositions"></g>
+          <g id="cameraLayer"></g>
+          <g id="alarmTrailLayer"></g>
+          <g id="alarmLayer"></g>
+        </svg>
+        <canvas id="heatmapCanvas" class="heatmap-canvas" style="display:none;"></canvas>
+        <!-- 相机弹出层 -->
+        <div class="cam-popup" id="camPopup">
+          <div class="cam-popup-header">
+            <span class="cam-popup-title" id="camPopupTitle">--</span>
+            <button class="cam-popup-close" onclick="closeCamPopup()"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <img class="cam-popup-img" id="camPopupImg" src="" alt="实时画面" />
+          <div class="cam-popup-meta">
+            <span id="camPopupZone">--</span>
+            <span id="camPopupStatus">--</span>
+          </div>
+        </div>
+      </div>
+      <!-- 底部状态栏 -->
+      <div class="bottom-bar">
+        <div class="bottom-stat">
+          <i class="bi bi-camera-video"></i>
+          摄像头: <span class="val" id="bottomCams">4</span>
+        </div>
+        <div class="bottom-stat">
+          <i class="bi bi-bell"></i>
+          活跃报警: <span class="val" id="bottomAlarms">0</span>
+        </div>
+        <div class="bottom-stat">
+          <i class="bi bi-circle-fill" style="font-size:6px;color:#55efc4"></i> 在线
+        </div>
+        <div class="legend-item"><div class="legend-dot red"></div>溺水</div>
+        <div class="legend-item"><div class="legend-dot orange"></div>游泳</div>
+        <div class="legend-item"><div class="legend-dot green"></div>玩水</div>
+        <div class="spacer"></div>
+        <button class="bottom-btn" onclick="takeScreenshot()"><i class="bi bi-camera"></i> 截图</button>
+      </div>
+    </div>
+
+    <!-- 右侧信息面板 -->
+    <div class="info-panel">
+      <!-- 活跃报警面板 -->
+      <div class="panel" style="flex:3">
+        <div class="panel-header">
+          <h3><i class="bi bi-bell me-2"></i>活跃报警</h3>
+          <span id="alarmCount" style="font-size:12px;color:rgba(200,216,232,0.4)">0</span>
+        </div>
+        <div class="alarm-list" id="alarmList">
+          <div class="empty-tip">暂无活跃报警</div>
+        </div>
+      </div>
+      <!-- 摄像头状态面板 -->
+      <div class="panel" style="flex:2">
+        <div class="panel-header">
+          <h3><i class="bi bi-camera-video me-2"></i>摄像头状态</h3>
+        </div>
+        <div class="cam-status-list" id="camStatusList">
+          <div class="empty-tip">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast 容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  const API_BASE = localStorage.getItem('api_base') || 'https://gills-register-prescribe.ngrok-free.dev';
+
+  // ── 状态变量 ──
+  let currentPoolType = 'rectangle';
+  let cameras = [];
+  let activeAlarms = [];
+  let alarmHistory = [];   // for trail dots
+  let heatmapData = [];
+  let heatmapVisible = false;
+  let isFullscreen = false;
+  let svgZoom = { scale: 1, x: 0, y: 0 };
+  let isPanning = false;
+  let panStart = { x: 0, y: 0 };
+
+  // ── 摄像头位置配置 ──
+  const CAMERA_POSITIONS = {
+    'CAM-001': { x: 400, y: 30, angle: -90, fov: 60, label: '深水区1号', zone: '深水区' },
+    'CAM-002': { x: 150, y: 30, angle: -90, fov: 60, label: '浅水区1号', zone: '浅水区' },
+    'CAM-003': { x: 650, y: 30, angle: -90, fov: 60, label: '深水区2号', zone: '深水区' },
+    'CAM-004': { x: 400, y: 570, angle: 90, fov: 60, label: '全景1号', zone: '全区域' },
+  };
+
+  // ── 泳池布局定义 ──
+  const POOL_LAYOUTS = {
+    rectangle: {
+      name: '标准矩形泳池',
+      bodies: [
+        { type: 'rect', x: 50, y: 60, width: 700, height: 480, rx: 10, fill: 'url(#waterGrad)', stroke: '#1e90ff', strokeWidth: 3 }
+      ],
+      zones: [
+        { type: 'rect', x: 50, y: 300, width: 700, height: 240, label: '深水区', depth: '2.0m', fill: 'url(#deepWaterGrad)', labelX: 400, labelY: 430 },
+        { type: 'rect', x: 50, y: 60, width: 700, height: 240, label: '浅水区', depth: '1.2m', fill: 'url(#waterGrad)', labelX: 400, labelY: 180 }
+      ],
+      lanes: Array.from({ length: 5 }, (_, i) => ({
+        x1: 50, y1: 60 + (i + 1) * 80, x2: 750, y2: 60 + (i + 1) * 80
+      })),
+      lifeguards: [
+        { x: 30, y: 180, label: '救生员1' },
+        { x: 30, y: 430, label: '救生员2' },
+        { x: 770, y: 300, label: '救生员3' }
+      ],
+      cameras: { ...CAMERA_POSITIONS }
+    },
+    irregular: {
+      name: '不规则形状泳池',
+      bodies: [
+        { type: 'path', d: 'M 150 60 L 650 60 Q 700 60 700 110 L 700 300 Q 700 340 660 340 L 500 340 L 500 540 Q 500 550 490 550 L 310 550 Q 300 550 300 540 L 300 340 L 140 340 Q 100 340 100 300 L 100 110 Q 100 60 150 60 Z', fill: 'url(#waterGrad)', stroke: '#1e90ff', strokeWidth: 3 }
+      ],
+      zones: [
+        { type: 'path', d: 'M 150 60 L 650 60 Q 700 60 700 110 L 700 200 L 100 200 L 100 110 Q 100 60 150 60 Z', label: '浅水区', depth: '1.0m', fill: 'url(#waterGrad)', labelX: 400, labelY: 130 },
+        { type: 'path', d: 'M 300 340 L 300 540 Q 300 550 310 550 L 490 550 Q 500 550 500 540 L 500 340 Z', label: '深水区', depth: '2.5m', fill: 'url(#deepWaterGrad)', labelX: 400, labelY: 450 },
+        { type: 'path', d: 'M 140 200 L 660 200 L 660 340 L 500 340 L 300 340 L 140 340 Z', label: '过渡区', depth: '1.5m', fill: 'url(#waterGrad)', labelX: 400, labelY: 280 }
+      ],
+      lanes: [],
+      lifeguards: [
+        { x: 80, y: 130, label: '救生员1' },
+        { x: 400, y: 570, label: '救生员2' }
+      ],
+      cameras: {
+        'CAM-001': { x: 400, y: 30, angle: -90, fov: 60, label: '浅水区1号', zone: '浅水区' },
+        'CAM-002': { x: 400, y: 570, angle: 90, fov: 60, label: '深水区1号', zone: '深水区' },
+        'CAM-003': { x: 720, y: 200, angle: 180, fov: 50, label: '过渡区1号', zone: '过渡区' },
+      }
+    },
+    composite: {
+      name: '儿童池+成人池组合',
+      bodies: [
+        { type: 'rect', x: 50, y: 60, width: 340, height: 480, rx: 30, fill: 'url(#waterGrad)', stroke: '#1e90ff', strokeWidth: 3 },
+        { type: 'rect', x: 430, y: 60, width: 320, height: 480, rx: 10, fill: 'url(#waterGrad)', stroke: '#1e90ff', strokeWidth: 3 }
+      ],
+      zones: [
+        { type: 'rect', x: 50, y: 60, width: 340, height: 480, label: '儿童池', depth: '0.6m', fill: 'rgba(85,239,196,0.12)', labelX: 220, labelY: 300 },
+        { type: 'rect', x: 430, y: 280, width: 320, height: 260, label: '深水区', depth: '2.0m', fill: 'url(#deepWaterGrad)', labelX: 590, labelY: 420 },
+        { type: 'rect', x: 430, y: 60, width: 320, height: 220, label: '浅水区', depth: '1.2m', fill: 'url(#waterGrad)', labelX: 590, labelY: 170 }
+      ],
+      lanes: Array.from({ length: 3 }, (_, i) => ({
+        x1: 430, y1: 60 + (i + 1) * 120, x2: 750, y2: 60 + (i + 1) * 120
+      })),
+      lifeguards: [
+        { x: 220, y: 30, label: '救生员(儿童池)' },
+        { x: 770, y: 170, label: '救生员1' },
+        { x: 770, y: 420, label: '救生员2' }
+      ],
+      cameras: {
+        'CAM-001': { x: 220, y: 30, angle: -90, fov: 70, label: '儿童池1号', zone: '儿童池' },
+        'CAM-002': { x: 590, y: 30, angle: -90, fov: 60, label: '浅水区1号', zone: '浅水区' },
+        'CAM-003': { x: 590, y: 570, angle: 90, fov: 60, label: '深水区1号', zone: '深水区' },
+        'CAM-004': { x: 770, y: 300, angle: 180, fov: 45, label: '全景1号', zone: '全区域' },
+      }
+    }
+  };
+
+  // ── 手机侧边栏切换 ──
+  function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+  }
+
+  // ── 鉴权检查 ──
+  (function checkAuth() {
+    const u = localStorage.getItem('waterGuardUser') || sessionStorage.getItem('waterGuardUser');
+    if (!u) { window.location.href = 'index.html'; return; }
+    try {
+      const user = JSON.parse(u);
+      document.getElementById('sidebarUser').textContent = user.nickname || user.phone || '管理员';
+      if (user.role !== 'admin') {
+        const usersNav = document.querySelector('a[href="users.html"]');
+        if (usersNav) usersNav.parentElement.style.display = 'none';
+      }
+    } catch(_) {}
+  })();
+
+  function logout() {
+    localStorage.removeItem('waterGuardUser');
+    sessionStorage.removeItem('waterGuardUser');
+    window.location.href = 'index.html';
+  }
+
+  // ── 实时时钟 ──
+  function updateClock() { document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('zh-CN'); }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── 泳池布局切换 ──
+  function switchPoolType(type, btn) {
+    currentPoolType = type;
+    document.querySelectorAll('.pool-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderPool();
+  }
+
+  // ── 渲染泳池 SVG ──
+  function renderPool() {
+    const layout = POOL_LAYOUTS[currentPoolType];
+    const ns = 'http://www.w3.org/2000/svg';
+
+    // 泳池主体
+    const bodyGroup = document.getElementById('poolBody');
+    bodyGroup.innerHTML = '';
+    layout.bodies.forEach(b => {
+      let el;
+      if (b.type === 'rect') {
+        el = document.createElementNS(ns, 'rect');
+        el.setAttribute('x', b.x); el.setAttribute('y', b.y);
+        el.setAttribute('width', b.width); el.setAttribute('height', b.height);
+        el.setAttribute('rx', b.rx || 0);
+      } else if (b.type === 'path') {
+        el = document.createElementNS(ns, 'path');
+        el.setAttribute('d', b.d);
+      }
+      el.setAttribute('fill', b.fill);
+      el.setAttribute('stroke', b.stroke);
+      el.setAttribute('stroke-width', b.strokeWidth);
+      bodyGroup.appendChild(el);
+    });
+
+    // 泳道线
+    const laneGroup = document.getElementById('poolLanes');
+    laneGroup.innerHTML = '';
+    layout.lanes.forEach(l => {
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', l.x1); line.setAttribute('y1', l.y1);
+      line.setAttribute('x2', l.x2); line.setAttribute('y2', l.y2);
+      line.setAttribute('stroke', 'rgba(255,255,255,0.15)');
+      line.setAttribute('stroke-width', '1');
+      line.setAttribute('stroke-dasharray', '10,8');
+      laneGroup.appendChild(line);
+    });
+
+    // 深度区域
+    const zoneGroup = document.getElementById('poolZones');
+    zoneGroup.innerHTML = '';
+    layout.zones.forEach(z => {
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('class', 'zone-group');
+      let zoneEl;
+      if (z.type === 'rect') {
+        zoneEl = document.createElementNS(ns, 'rect');
+        zoneEl.setAttribute('x', z.x); zoneEl.setAttribute('y', z.y);
+        zoneEl.setAttribute('width', z.width); zoneEl.setAttribute('height', z.height);
+        zoneEl.setAttribute('rx', z.rx || 0);
+      } else if (z.type === 'path') {
+        zoneEl = document.createElementNS(ns, 'path');
+        zoneEl.setAttribute('d', z.d);
+      }
+      zoneEl.setAttribute('fill', z.fill);
+      zoneEl.setAttribute('class', 'zone-fill');
+      zoneEl.setAttribute('fill-opacity', '0.15');
+      g.appendChild(zoneEl);
+
+      // 区域标签背景
+      const labelBg = document.createElementNS(ns, 'rect');
+      labelBg.setAttribute('x', z.labelX - 50); labelBg.setAttribute('y', z.labelY - 14);
+      labelBg.setAttribute('width', '100'); labelBg.setAttribute('height', '28');
+      labelBg.setAttribute('rx', '6');
+      labelBg.setAttribute('fill', 'rgba(12,25,41,0.7)');
+      labelBg.setAttribute('class', 'zone-label-bg');
+      g.appendChild(labelBg);
+
+      // 区域文字
+      const text1 = document.createElementNS(ns, 'text');
+      text1.setAttribute('x', z.labelX); text1.setAttribute('y', z.labelY - 2);
+      text1.setAttribute('text-anchor', 'middle');
+      text1.setAttribute('fill', 'rgba(255,255,255,0.7)');
+      text1.setAttribute('font-size', '13');
+      text1.setAttribute('font-weight', '600');
+      text1.textContent = z.label;
+      g.appendChild(text1);
+
+      const text2 = document.createElementNS(ns, 'text');
+      text2.setAttribute('x', z.labelX); text2.setAttribute('y', z.labelY + 12);
+      text2.setAttribute('text-anchor', 'middle');
+      text2.setAttribute('fill', 'rgba(255,255,255,0.4)');
+      text2.setAttribute('font-size', '10');
+      text2.textContent = z.depth;
+      g.appendChild(text2);
+
+      zoneGroup.appendChild(g);
+    });
+
+    // 救生员位置
+    const lgGroup = document.getElementById('lifeguardPositions');
+    lgGroup.innerHTML = '';
+    layout.lifeguards.forEach(lg => {
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('transform', `translate(${lg.x}, ${lg.y})`);
+
+      // 椅子图标
+      const chairBg = document.createElementNS(ns, 'circle');
+      chairBg.setAttribute('r', '14');
+      chairBg.setAttribute('fill', 'rgba(243,156,18,0.2)');
+      chairBg.setAttribute('stroke', '#f39c12');
+      chairBg.setAttribute('stroke-width', '1.5');
+      g.appendChild(chairBg);
+
+      const chairIcon = document.createElementNS(ns, 'text');
+      chairIcon.setAttribute('text-anchor', 'middle');
+      chairIcon.setAttribute('dominant-baseline', 'central');
+      chairIcon.setAttribute('fill', '#f39c12');
+      chairIcon.setAttribute('font-size', '14');
+      chairIcon.textContent = '\u{1F6CB}';  // couch emoji fallback
+      // Use simple text instead
+      chairIcon.textContent = 'L';
+      g.appendChild(chairIcon);
+
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', '0'); label.setAttribute('y', '24');
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('fill', 'rgba(255,255,255,0.4)');
+      label.setAttribute('font-size', '9');
+      label.textContent = lg.label;
+      g.appendChild(label);
+
+      lgGroup.appendChild(g);
+    });
+
+    // 渲染摄像头
+    renderCameras(layout.cameras);
+
+    // 重新渲染报警标记
+    renderAlarmMarkers();
+
+    // 更新底部摄像头计数
+    document.getElementById('bottomCams').textContent = Object.keys(layout.cameras).length;
+
+    // 更新摄像头状态列表
+    renderCamStatusList(layout.cameras);
+  }
+
+  // ── 渲染摄像头图标 ──
+  function renderCameras(camPositions) {
+    const camGroup = document.getElementById('cameraLayer');
+    camGroup.innerHTML = '';
+    const ns = 'http://www.w3.org/2000/svg';
+
+    Object.entries(camPositions).forEach(([camId, pos]) => {
+      const cam = cameras.find(c => c.camera_id === camId);
+      const isOnline = cam ? cam.status === 'online' : true;
+
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('class', 'camera-icon-group');
+      g.setAttribute('data-cam-id', camId);
+      g.onclick = () => showCamPopup(camId, pos);
+
+      // 视野锥形
+      const fovRad = (pos.fov / 2) * Math.PI / 180;
+      const dirRad = (pos.angle - 90) * Math.PI / 180;
+      const coneLen = 100;
+      const x1 = pos.x + Math.cos(dirRad - fovRad) * coneLen;
+      const y1 = pos.y + Math.sin(dirRad - fovRad) * coneLen;
+      const x2 = pos.x + Math.cos(dirRad + fovRad) * coneLen;
+      const y2 = pos.y + Math.sin(dirRad + fovRad) * coneLen;
+
+      const cone = document.createElementNS(ns, 'polygon');
+      cone.setAttribute('points', `${pos.x},${pos.y} ${x1},${y1} ${x2},${y2}`);
+      cone.setAttribute('fill', 'rgba(255,255,0,0.08)');
+      cone.setAttribute('stroke', 'rgba(255,255,0,0.15)');
+      cone.setAttribute('stroke-width', '0.5');
+      cone.setAttribute('class', 'cam-fov-cone');
+      g.appendChild(cone);
+
+      // 摄像头图标背景
+      const bg = document.createElementNS(ns, 'circle');
+      bg.setAttribute('cx', pos.x); bg.setAttribute('cy', pos.y);
+      bg.setAttribute('r', '16');
+      bg.setAttribute('fill', 'rgba(13,33,55,0.9)');
+      bg.setAttribute('stroke', isOnline ? '#3498db' : '#636e72');
+      bg.setAttribute('stroke-width', '1.5');
+      bg.setAttribute('class', 'cam-icon-bg');
+      g.appendChild(bg);
+
+      // 摄像头图标 (简单摄像机形状)
+      const camBody = document.createElementNS(ns, 'rect');
+      camBody.setAttribute('x', pos.x - 7); camBody.setAttribute('y', pos.y - 4);
+      camBody.setAttribute('width', '10'); camBody.setAttribute('height', '8');
+      camBody.setAttribute('rx', '1.5');
+      camBody.setAttribute('fill', isOnline ? '#3498db' : '#636e72');
+      g.appendChild(camBody);
+
+      const camLens = document.createElementNS(ns, 'polygon');
+      camLens.setAttribute('points', `${pos.x + 3},${pos.y - 3} ${pos.x + 8},${pos.y - 6} ${pos.x + 8},${pos.y + 6} ${pos.x + 3},${pos.y + 3}`);
+      camLens.setAttribute('fill', isOnline ? '#3498db' : '#636e72');
+      g.appendChild(camLens);
+
+      // 状态指示灯
+      const statusDot = document.createElementNS(ns, 'circle');
+      statusDot.setAttribute('cx', pos.x + 10); statusDot.setAttribute('cy', pos.y - 8);
+      statusDot.setAttribute('r', '3');
+      statusDot.setAttribute('fill', isOnline ? '#55efc4' : '#636e72');
+      if (isOnline) {
+        statusDot.setAttribute('filter', '');
+        // 添加发光效果
+      }
+      g.appendChild(statusDot);
+
+      // 标签
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', pos.x); label.setAttribute('y', pos.y + 26);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('fill', 'rgba(255,255,255,0.5)');
+      label.setAttribute('font-size', '9');
+      label.textContent = pos.label;
+      g.appendChild(label);
+
+      camGroup.appendChild(g);
+    });
+  }
+
+  // ── 渲染报警标记 ──
+  function renderAlarmMarkers() {
+    const alarmGroup = document.getElementById('alarmLayer');
+    alarmGroup.innerHTML = '';
+    const trailGroup = document.getElementById('alarmTrailLayer');
+    trailGroup.innerHTML = '';
+    const ns = 'http://www.w3.org/2000/svg';
+
+    // 报警轨迹（历史淡出点）
+    const recentTrails = alarmHistory.slice(-20);
+    recentTrails.forEach((trail, idx) => {
+      const opacity = 0.1 + (idx / recentTrails.length) * 0.3;
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', trail.x); dot.setAttribute('cy', trail.y);
+      dot.setAttribute('r', '4');
+      const trailColor = trail.level === 'urgent' ? `rgba(231,76,60,${opacity})` :
+                         trail.level === 'warning' ? `rgba(243,156,18,${opacity})` :
+                         `rgba(85,239,196,${opacity})`;
+      dot.setAttribute('fill', trailColor);
+      trailGroup.appendChild(dot);
+    });
+
+    // 活跃报警标记
+    activeAlarms.forEach(alarm => {
+      if (!alarm.mapX || !alarm.mapY) return;
+      const color = alarm.level === 'urgent' ? '#e74c3c' : alarm.level === 'warning' ? '#f39c12' : '#55efc4';
+      const gradId = alarm.level === 'urgent' ? 'alarmGradUrgent' : 'alarmGradWarning';
+
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('class', 'alarm-marker');
+      g.setAttribute('data-alarm-id', alarm.id || '');
+      g.onclick = () => highlightAlarm(alarm.id);
+
+      // 外圈扩散
+      const ring = document.createElementNS(ns, 'circle');
+      ring.setAttribute('cx', alarm.mapX); ring.setAttribute('cy', alarm.mapY);
+      ring.setAttribute('r', '12');
+      ring.setAttribute('fill', 'none');
+      ring.setAttribute('stroke', color);
+      ring.setAttribute('stroke-width', '2');
+      ring.setAttribute('class', alarm.level === 'urgent' ? 'alarm-marker-ring' : '');
+      g.appendChild(ring);
+
+      // 脉冲圆
+      const pulse = document.createElementNS(ns, 'circle');
+      pulse.setAttribute('cx', alarm.mapX); pulse.setAttribute('cy', alarm.mapY);
+      pulse.setAttribute('r', '12');
+      pulse.setAttribute('fill', `url(#${gradId})`);
+      pulse.setAttribute('class', alarm.level === 'urgent' ? 'alarm-marker-pulse' : '');
+      g.appendChild(pulse);
+
+      // 内核
+      const core = document.createElementNS(ns, 'circle');
+      core.setAttribute('cx', alarm.mapX); core.setAttribute('cy', alarm.mapY);
+      core.setAttribute('r', '5');
+      core.setAttribute('fill', color);
+      g.appendChild(core);
+
+      // 标签
+      const labelBg = document.createElementNS(ns, 'rect');
+      const labelText = alarm.track_id ? `ID:${alarm.track_id}` : (alarm.detection_type || '');
+      labelBg.setAttribute('x', alarm.mapX - 25); labelBg.setAttribute('y', alarm.mapY - 26);
+      labelBg.setAttribute('width', '50'); labelBg.setAttribute('height', '14');
+      labelBg.setAttribute('rx', '3');
+      labelBg.setAttribute('fill', 'rgba(12,25,41,0.85)');
+      g.appendChild(labelBg);
+
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', alarm.mapX); label.setAttribute('y', alarm.mapY - 17);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('fill', color);
+      label.setAttribute('font-size', '8');
+      label.setAttribute('font-weight', '600');
+      label.textContent = labelText;
+      g.appendChild(label);
+
+      alarmGroup.appendChild(g);
+    });
+
+    document.getElementById('bottomAlarms').textContent = activeAlarms.length;
+    document.getElementById('alarmCount').textContent = activeAlarms.length;
+  }
+
+  // ── 渲染报警列表 ──
+  function renderAlarmList() {
+    const container = document.getElementById('alarmList');
+    if (activeAlarms.length === 0) {
+      container.innerHTML = '<div class="empty-tip">暂无活跃报警</div>';
+      return;
+    }
+    container.innerHTML = activeAlarms.map(a => {
+      const levelClass = a.level || 'warning';
+      const levelText = levelClass === 'urgent' ? '紧急' : levelClass === 'warning' ? '警告' : '记录';
+      const typeLabel = a.detection_type === 'drowning' ? '溺水' : a.detection_type === 'swimming' ? '游泳' : a.detection_type === 'playing' ? '玩水' : '检测';
+      const snapshotUrl = a.camera_id ? `${API_BASE}/api/cameras/${a.camera_id}/snapshot?t=${Date.now()}` : '';
+      return `
+        <div class="alarm-item ${a.highlighted ? 'highlighted' : ''}" data-alarm-id="${a.id || ''}" onclick="highlightAlarm('${a.id}')">
+          <div class="alarm-dot ${levelClass}"></div>
+          <img class="alarm-snapshot" src="${snapshotUrl}" onerror="this.style.display='none'" alt="" />
+          <div class="alarm-info" style="flex:1;min-width:0">
+            <div class="title">${typeLabel}${a.track_id ? ' - ID:' + a.track_id : ''}</div>
+            <div class="meta">
+              <i class="bi bi-geo-alt me-1"></i>${a.location || '未知位置'}
+              &nbsp;·&nbsp; ${formatTime(a.time)}
+              ${a.camera_id ? ' · ' + a.camera_id : ''}
+            </div>
+          </div>
+          <span class="alarm-badge ${levelClass}">${levelText}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function formatTime(t) { return t ? (t.length > 16 ? t.substring(0, 16) : t) : '--'; }
+
+  // ── 报警高亮 ──
+  function highlightAlarm(alarmId) {
+    if (!alarmId) return;
+    activeAlarms.forEach(a => a.highlighted = (a.id === alarmId));
+    renderAlarmList();
+
+    // 平滑滚动到报警项
+    const el = document.querySelector(`.alarm-item[data-alarm-id="${alarmId}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // ── 摄像头弹出层 ──
+  function showCamPopup(camId, pos) {
+    const popup = document.getElementById('camPopup');
+    const cam = cameras.find(c => c.camera_id === camId);
+    const camPos = POOL_LAYOUTS[currentPoolType].cameras[camId] || pos;
+
+    document.getElementById('camPopupTitle').textContent = camPos.label || camId;
+    document.getElementById('camPopupZone').textContent = `区域: ${camPos.zone || '--'}`;
+    document.getElementById('camPopupStatus').textContent = cam ? (cam.status === 'online' ? '在线' : '离线') : '状态未知';
+
+    const img = document.getElementById('camPopupImg');
+    if (cam && cam.status === 'online') {
+      img.src = `${API_BASE}/api/cameras/${camId}/snapshot?t=${Date.now()}`;
+    } else {
+      img.src = '';
+      img.style.display = 'none';
+    }
+
+    // 定位弹出层
+    const wrap = document.getElementById('mapWrap');
+    const svgEl = document.getElementById('poolMap');
+    const wrapRect = wrap.getBoundingClientRect();
+    const svgRect = svgEl.getBoundingClientRect();
+
+    const scaleX = svgRect.width / 800;
+    const scaleY = svgRect.height / 600;
+    let px = svgRect.left - wrapRect.left + camPos.x * scaleX + 20;
+    let py = svgRect.top - wrapRect.top + camPos.y * scaleY - 50;
+
+    // 边界检查
+    if (px + 280 > wrapRect.width) px = px - 310;
+    if (py + 200 > wrapRect.height) py = wrapRect.height - 220;
+    if (py < 0) py = 10;
+
+    popup.style.left = px + 'px';
+    popup.style.top = py + 'px';
+    popup.classList.add('show');
+  }
+
+  function closeCamPopup() {
+    document.getElementById('camPopup').classList.remove('show');
+  }
+
+  // ── 摄像头状态列表 ──
+  function renderCamStatusList(camPositions) {
+    const container = document.getElementById('camStatusList');
+    const entries = Object.entries(camPositions);
+    if (entries.length === 0) {
+      container.innerHTML = '<div class="empty-tip">无摄像头</div>';
+      return;
+    }
+    container.innerHTML = entries.map(([camId, pos]) => {
+      const cam = cameras.find(c => c.camera_id === camId);
+      const isOnline = cam ? cam.status === 'online' : true;
+      return `
+        <div class="cam-status-item" onclick="showCamPopup('${camId}', CAMERA_POSITIONS['${camId}'] || {x:0,y:0})" style="cursor:pointer">
+          <div class="cam-status-dot ${isOnline ? 'online' : 'offline'}"></div>
+          <span class="cam-status-name">${pos.label || camId}</span>
+          <span class="cam-status-zone">${pos.zone || ''}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── 热力图 ──
+  function toggleHeatmap() {
+    heatmapVisible = !heatmapVisible;
+    const btn = document.getElementById('btnHeatmap');
+    const canvas = document.getElementById('heatmapCanvas');
+    btn.classList.toggle('active', heatmapVisible);
+    canvas.style.display = heatmapVisible ? 'block' : 'none';
+    if (heatmapVisible) drawHeatmap();
+  }
+
+  function drawHeatmap() {
+    if (!heatmapVisible) return;
+    const canvas = document.getElementById('heatmapCanvas');
+    const wrap = document.getElementById('mapWrap');
+    canvas.width = wrap.offsetWidth;
+    canvas.height = wrap.offsetHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const scaleX = canvas.width / 800;
+    const scaleY = canvas.height / 600;
+    const now = Date.now();
+
+    heatmapData.forEach(point => {
+      const age = (now - point.timestamp) / 60000; // minutes
+      const maxAge = 30;
+      if (age > maxAge) return;
+      const alpha = Math.max(0.05, 0.4 * (1 - age / maxAge));
+      const radius = 40;
+
+      const px = point.x * scaleX;
+      const py = point.y * scaleY;
+
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, radius);
+      if (point.level === 'urgent') {
+        grad.addColorStop(0, `rgba(231,76,60,${alpha})`);
+        grad.addColorStop(1, `rgba(231,76,60,0)`);
+      } else if (point.level === 'warning') {
+        grad.addColorStop(0, `rgba(243,156,18,${alpha})`);
+        grad.addColorStop(1, `rgba(243,156,18,0)`);
+      } else {
+        grad.addColorStop(0, `rgba(85,239,196,${alpha * 0.5})`);
+        grad.addColorStop(1, `rgba(85,239,196,0)`);
+      }
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(px - radius, py - radius, radius * 2, radius * 2);
+    });
+
+    requestAnimationFrame(drawHeatmap);
+  }
+
+  // ── 缩放和平移 ──
+  function initPanZoom() {
+    const svg = document.getElementById('poolMap');
+    const wrap = document.getElementById('mapWrap');
+
+    wrap.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      svgZoom.scale = Math.max(0.5, Math.min(5, svgZoom.scale * delta));
+      applyZoom();
+    }, { passive: false });
+
+    wrap.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.camera-icon-group') || e.target.closest('.alarm-marker')) return;
+      isPanning = true;
+      panStart = { x: e.clientX - svgZoom.x, y: e.clientY - svgZoom.y };
+      wrap.style.cursor = 'grabbing';
+    });
+
+    wrap.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      svgZoom.x = e.clientX - panStart.x;
+      svgZoom.y = e.clientY - panStart.y;
+      applyZoom();
+    });
+
+    wrap.addEventListener('mouseup', () => {
+      isPanning = false;
+      wrap.style.cursor = '';
+    });
+
+    wrap.addEventListener('mouseleave', () => {
+      isPanning = false;
+      wrap.style.cursor = '';
+    });
+
+    // 触摸支持
+    let lastTouchDist = 0;
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+      } else if (e.touches.length === 1) {
+        isPanning = true;
+        panStart = { x: e.touches[0].clientX - svgZoom.x, y: e.touches[0].clientY - svgZoom.y };
+      }
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (lastTouchDist > 0) {
+          const scale = dist / lastTouchDist;
+          svgZoom.scale = Math.max(0.5, Math.min(5, svgZoom.scale * scale));
+          applyZoom();
+        }
+        lastTouchDist = dist;
+      } else if (isPanning && e.touches.length === 1) {
+        svgZoom.x = e.touches[0].clientX - panStart.x;
+        svgZoom.y = e.touches[0].clientY - panStart.y;
+        applyZoom();
+      }
+    }, { passive: true });
+
+    wrap.addEventListener('touchend', () => { isPanning = false; lastTouchDist = 0; });
+  }
+
+  function applyZoom() {
+    const svg = document.getElementById('poolMap');
+    svg.style.transform = `translate(${svgZoom.x}px, ${svgZoom.y}px) scale(${svgZoom.scale})`;
+    svg.style.transformOrigin = 'center center';
+    svg.style.transition = 'transform 0.1s ease';
+  }
+
+  function resetZoom() {
+    svgZoom = { scale: 1, x: 0, y: 0 };
+    const svg = document.getElementById('poolMap');
+    svg.style.transform = '';
+    svg.style.transition = 'transform 0.3s ease';
+  }
+
+  // ── 全屏切换 ──
+  function toggleFullscreen() {
+    isFullscreen = !isFullscreen;
+    document.body.classList.toggle('map-fullscreen', isFullscreen);
+    const btn = document.getElementById('btnFullscreen');
+    btn.innerHTML = isFullscreen ? '<i class="bi bi-fullscreen-exit"></i> 退出全屏' : '<i class="bi bi-fullscreen"></i> 全屏';
+  }
+
+  // ── 截图功能 ──
+  function takeScreenshot() {
+    showToast('正在生成截图...');
+    // 使用简单的方案：将 SVG 序列化为图片
+    const svg = document.getElementById('poolMap');
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pool_map_${new Date().toISOString().replace(/[:.]/g, '-')}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('截图已保存');
+  }
+
+  // ── Toast ──
+  function showToast(msg) {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'toast-msg';
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  // ── 添加报警标记到地图 ──
+  function addAlarmMarker(data) {
+    const alarm = data.data || data;
+    const layout = POOL_LAYOUTS[currentPoolType];
+
+    // 确定 mapX, mapY 位置
+    let mapX, mapY;
+    if (alarm.map_x !== undefined && alarm.map_y !== undefined) {
+      mapX = alarm.map_x;
+      mapY = alarm.map_y;
+    } else if (alarm.camera_id && layout.cameras[alarm.camera_id]) {
+      // 根据摄像头位置添加偏移
+      const camPos = layout.cameras[alarm.camera_id];
+      const dirRad = (camPos.angle - 90) * Math.PI / 180;
+      const offset = 40 + Math.random() * 60;
+      mapX = camPos.x + Math.cos(dirRad) * offset + (Math.random() - 0.5) * 60;
+      mapY = camPos.y + Math.sin(dirRad) * offset + (Math.random() - 0.5) * 60;
+    } else {
+      // 随机位置在泳池范围内
+      mapX = 150 + Math.random() * 500;
+      mapY = 100 + Math.random() * 400;
+    }
+
+    // 边界约束
+    mapX = Math.max(60, Math.min(740, mapX));
+    mapY = Math.max(70, Math.min(530, mapY));
+
+    const level = alarm.level || (alarm.detection_type === 'drowning' ? 'urgent' : 'warning');
+    const newAlarm = {
+      id: alarm.id || 'alm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      mapX, mapY,
+      level,
+      detection_type: alarm.detection_type || alarm.type || '',
+      track_id: alarm.track_id || '',
+      camera_id: alarm.camera_id || '',
+      location: alarm.location || alarm.zone || '',
+      message: alarm.message || '',
+      time: alarm.time || new Date().toISOString(),
+      timestamp: Date.now(),
+      highlighted: false
+    };
+
+    activeAlarms.unshift(newAlarm);
+    if (activeAlarms.length > 20) activeAlarms.pop();
+
+    // 添加到历史轨迹
+    alarmHistory.push({ x: mapX, y: mapY, level, timestamp: Date.now() });
+    if (alarmHistory.length > 50) alarmHistory.shift();
+
+    // 添加到热力图数据
+    heatmapData.push({ x: mapX, y: mapY, level, timestamp: Date.now() });
+    if (heatmapData.length > 200) heatmapData.shift();
+
+    renderAlarmMarkers();
+    renderAlarmList();
+  }
+
+  // ── 摄像头状态更新 ──
+  function updateCameraStatus(data) {
+    const cam = data.data || data;
+    const idx = cameras.findIndex(c => c.camera_id === cam.camera_id);
+    if (idx >= 0) {
+      cameras[idx] = { ...cameras[idx], ...cam };
+    } else {
+      cameras.push(cam);
+    }
+    renderPool();
+  }
+
+  // ── 加载摄像头列表 ──
+  async function loadCameras() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/cameras`);
+      if (!resp.ok) return;
+      cameras = await resp.json();
+      if (!Array.isArray(cameras)) cameras = [];
+      renderPool();
+    } catch(_) {
+      cameras = [];
+      renderPool();
+    }
+  }
+
+  // ── 加载历史报警 ──
+  async function loadRecentAlarms() {
+    try {
+      const resp = await fetch(`${API_BASE}/alarms?limit=20`);
+      if (!resp.ok) return;
+      const list = await resp.json();
+      if (!Array.isArray(list)) return;
+
+      // 只把最近的报警添加到历史轨迹和热力图
+      list.forEach(a => {
+        const layout = POOL_LAYOUTS[currentPoolType];
+        let mapX, mapY;
+        if (a.camera_id && layout.cameras[a.camera_id]) {
+          const camPos = layout.cameras[a.camera_id];
+          const dirRad = (camPos.angle - 90) * Math.PI / 180;
+          mapX = camPos.x + Math.cos(dirRad) * 80 + (Math.random() - 0.5) * 40;
+          mapY = camPos.y + Math.sin(dirRad) * 80 + (Math.random() - 0.5) * 40;
+        } else {
+          mapX = 150 + Math.random() * 500;
+          mapY = 100 + Math.random() * 400;
+        }
+        const level = a.level || (a.detection_type === 'drowning' ? 'urgent' : 'warning');
+        alarmHistory.push({ x: mapX, y: mapY, level, timestamp: Date.now() - Math.random() * 600000 });
+        heatmapData.push({ x: mapX, y: mapY, level, timestamp: Date.now() - Math.random() * 1800000 });
+      });
+
+      if (alarmHistory.length > 50) alarmHistory = alarmHistory.slice(-50);
+      if (heatmapData.length > 200) heatmapData = heatmapData.slice(-200);
+
+      renderAlarmMarkers();
+    } catch(_) {}
+  }
+
+  // ── WebSocket ──
+  let ws = null;
+  function connectWs() {
+    const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws';
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+      showToast('WebSocket 已连接');
+      wsHeartbeat();
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        switch (msg.type) {
+          case 'alarm':
+            addAlarmMarker(msg.data || msg);
+            break;
+          case 'detection':
+            addAlarmMarker(msg.data || msg);
+            break;
+          case 'camera_update':
+            updateCameraStatus(msg);
+            break;
+          case 'stats_update':
+            break;
+        }
+      } catch(_) {}
+    };
+    ws.onclose = () => {
+      setTimeout(connectWs, 5000);
+    };
+    ws.onerror = () => { ws.close(); };
+  }
+
+  function wsHeartbeat() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('ping');
+      setTimeout(wsHeartbeat, 30000);
+    }
+  }
+
+  // ── 点击空白关闭弹出层 ──
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.cam-popup') && !e.target.closest('.camera-icon-group')) {
+      closeCamPopup();
+    }
+  });
+
+  // ── 初始化 ──
+  loadCameras();
+  loadRecentAlarms();
+  connectWs();
+  renderPool();
+  initPanZoom();
+</script>
+</body>
+</html>

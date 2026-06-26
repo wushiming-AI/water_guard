@@ -1,0 +1,118 @@
+<!-- pages/login/login.wxml -->
+<view class="login-page">
+  <view class="bg-circle c1"></view>
+  <view class="bg-circle c2"></view>
+  <view class="bg-circle c3"></view>
+
+  <!-- 底部水波纹装饰 -->
+  <view class="wave-layer">
+    <view class="wave-path">
+      <svg viewBox="0 0 1440 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+        <path d="M0,80 C360,160 720,0 1080,80 C1260,120 1380,100 1440,80 L1440,200 L0,200 Z" fill="rgba(33,150,243,0.5)"/>
+        <path d="M0,120 C360,40 720,180 1080,120 C1260,80 1380,100 1440,120 L1440,200 L0,200 Z" fill="rgba(0,188,212,0.3)"/>
+      </svg>
+    </view>
+  </view>
+
+  <view class="login-box">
+    <!-- Logo -->
+    <view class="logo-area">
+      <view class="logo-icon">
+        <text class="icon-text">🛡</text>
+      </view>
+      <text class="logo-title">水域溺水防控AI预警</text>
+      <text class="logo-sub">WaterGuard Surveillance Platform</text>
+    </view>
+
+    <!-- 服务器地址配置 -->
+    <view class="server-section">
+      <view class="server-toggle" bindtap="toggleServerInput">
+        <text class="server-toggle-text">⚙ 服务器地址</text>
+        <text class="server-toggle-arrow">{{showServerInput ? '▲' : '▼'}}</text>
+      </view>
+
+      <view class="server-detail" wx:if="{{showServerInput}}">
+        <view class="server-input-row">
+          <input
+            class="server-input"
+            placeholder="https://gills-register-prescribe.ngrok-free.dev"
+            placeholder-style="color: rgba(200,216,232,0.3)"
+            value="{{serverUrl}}"
+            bindinput="onServerUrlInput"
+          />
+          <button
+            class="test-btn"
+            size="mini"
+            bindtap="testServer"
+            disabled="{{testing}}"
+            loading="{{testing}}"
+          >测试</button>
+        </view>
+        <view class="test-result {{testResult.indexOf('成功') > -1 ? 'ok' : testResult ? 'fail' : ''}}">
+          {{testResult}}
+        </view>
+        <view class="server-tips">
+          <text>• 模拟器用 localhost 或 127.0.0.1</text>
+          <text>• 真机用电脑IP（如 http://192.168.5.3:8000）</text>
+          <text>• 必须勾选"详情→本地设置→不校验合法域名"</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 输入区域 -->
+    <view class="form-area">
+      <view class="input-wrap">
+        <text class="input-icon">📱</text>
+        <input
+          class="input-inner"
+          type="number"
+          placeholder="请输入手机号"
+          placeholder-style="color: rgba(200,216,232,0.3)"
+          maxlength="11"
+          value="{{phone}}"
+          bindinput="onPhoneInput"
+        />
+      </view>
+
+      <view class="input-wrap" style="margin-top:24rpx">
+        <text class="input-icon">🔒</text>
+        <input
+          class="input-inner"
+          type="safe-password"
+          placeholder="请输入密码"
+          placeholder-style="color: rgba(200,216,232,0.3)"
+          value="{{password}}"
+          bindinput="onPasswordInput"
+          password="{{true}}"
+        />
+      </view>
+
+      <view class="remember-row">
+        <switch
+          checked="{{rememberLogin}}"
+          bindchange="onRememberChange"
+          color="#42a5f5"
+          style="transform:scale(0.8);margin-left:-8rpx"
+        />
+        <text class="remember-text">记住登录</text>
+      </view>
+
+      <!-- 错误提示 -->
+      <view class="error-msg" wx:if="{{errorMsg}}">
+        <text>⚠ {{errorMsg}}</text>
+      </view>
+
+      <!-- 登录按钮 -->
+      <button
+        class="login-btn"
+        bindtap="onLogin"
+        disabled="{{loading}}"
+        loading="{{loading}}"
+      >
+        {{loading ? '登录中...' : '登 录'}}
+      </button>
+    </view>
+
+    <text class="hint-text">默认账号：13800138000 / 密码：123456</text>
+  </view>
+</view>

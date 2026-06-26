@@ -1,0 +1,65 @@
+<!-- pages/alarms/alarms.wxml -->
+<view class="page-container">
+
+  <!-- 筛选栏 -->
+  <view class="filter-bar">
+    <view class="filter-label">日期：</view>
+    <picker mode="date" bindchange="onDateChange" value="{{filterDate}}">
+      <view class="date-picker">
+        <text class="{{filterDate ? 'date-value' : 'date-placeholder'}}">
+          {{filterDate || '全部日期'}}
+        </text>
+        <text class="picker-arrow">▼</text>
+      </view>
+    </picker>
+    <view class="filter-label" style="margin-left:12rpx;">级别：</view>
+    <picker bindchange="onLevelChange" value="{{levelIndex}}" range="{{levelOptions}}">
+      <view class="date-picker">
+        <text class="{{filterLevel ? 'date-value' : 'date-placeholder'}}">
+          {{levelOptions[levelIndex]}}
+        </text>
+        <text class="picker-arrow">▼</text>
+      </view>
+    </picker>
+    <view class="filter-reset" bindtap="onResetFilter" wx:if="{{filterDate || filterLevel}}">
+      <text>✕ 重置</text>
+    </view>
+    <text class="total-text">共 {{total}} 条</text>
+  </view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading && alarmList.length === 0}}" class="loading-state">
+    <text>⏳ 加载中...</text>
+  </view>
+
+  <!-- 空状态 -->
+  <view wx:elif="{{alarmList.length === 0}}" class="empty-state">
+    <text>📭 暂无预警记录</text>
+  </view>
+
+  <!-- 列表 -->
+  <view wx:else class="alarm-list">
+    <view
+      wx:for="{{alarmList}}"
+      wx:key="id"
+      class="alarm-card"
+    >
+      <view class="alarm-left-bar {{item.level || 'warning'}}"></view>
+      <view class="alarm-body">
+        <view class="alarm-row-top">
+          <text class="alarm-msg">{{item.message || '检测到异常'}}</text>
+          <text class="badge-{{item.level || 'warning'}}">{{item.levelLabel}}</text>
+        </view>
+        <view class="alarm-row-bottom">
+          <text class="alarm-meta">📍 {{item.location || '未知位置'}}</text>
+          <text class="alarm-meta alarm-time">🕐 {{item.timeShort}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 上拉加载更多 -->
+    <view wx:if="{{loading}}" class="load-more-tip">加载中...</view>
+    <view wx:elif="{{allLoaded && alarmList.length > 0}}" class="load-more-tip">已加载全部</view>
+  </view>
+
+</view>

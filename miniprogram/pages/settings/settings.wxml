@@ -1,0 +1,122 @@
+<!-- pages/settings/settings.wxml -->
+<view class="page-container">
+
+  <!-- 用户信息区 -->
+  <view class="user-card">
+    <view class="user-avatar">
+      <text>👤</text>
+    </view>
+    <view class="user-info">
+      <text class="user-phone">{{userPhone}}</text>
+      <text class="user-role">系统管理员</text>
+    </view>
+  </view>
+
+  <!-- 服务配置 -->
+  <view class="section-card">
+    <view class="section-title">🌐 服务配置</view>
+    <view class="setting-item">
+      <view class="setting-left">
+        <text class="setting-label">后端服务地址</text>
+        <text class="setting-desc">AI 检测后端地址</text>
+      </view>
+    </view>
+    <input class="url-input" value="{{serverUrl}}" bindinput="onServerUrlInput"
+      placeholder="https://gills-register-prescribe.ngrok-free.dev"
+      placeholder-style="color:rgba(200,216,232,0.3)" />
+  </view>
+
+  <!-- 检测配置 -->
+  <view class="section-card">
+    <view class="section-title">🎯 检测配置</view>
+    <view class="setting-item">
+      <view class="setting-left">
+        <text class="setting-label">预警灵敏度</text>
+        <text class="setting-desc">当前：{{sensitivity}}</text>
+      </view>
+      <picker bindchange="onSensitivityChange" value="{{sensitivityIndex}}" range="{{sensitivityOptions}}">
+        <view class="picker-btn">
+          <text>{{sensitivityOptions[sensitivityIndex]}}</text>
+          <text class="arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <!-- 通知配置 -->
+  <view class="section-card">
+    <view class="section-title">🔔 通知配置</view>
+    <view class="setting-item">
+      <view class="setting-left">
+        <text class="setting-label">声音报警</text>
+        <text class="setting-desc">触发预警时播放声音</text>
+      </view>
+      <switch checked="{{soundAlarm}}" bindchange="onSoundAlarmChange" color="#3498db" />
+    </view>
+    <view class="divider"></view>
+    <view class="setting-item">
+      <view class="setting-left">
+        <text class="setting-label">手机推送</text>
+        <text class="setting-desc">预警时发送通知</text>
+      </view>
+      <switch checked="{{pushNotify}}" bindchange="onPushNotifyChange" color="#3498db" />
+    </view>
+    <view class="divider"></view>
+    <view class="setting-item">
+      <view class="setting-left">
+        <text class="setting-label">自动录像</text>
+        <text class="setting-desc">预警时保存视频</text>
+      </view>
+      <switch checked="{{autoRecord}}" bindchange="onAutoRecordChange" color="#3498db" />
+    </view>
+  </view>
+
+  <!-- 保存按钮 -->
+  <button class="save-btn" bindtap="saveSettings" disabled="{{saving}}" loading="{{saving}}">
+    {{saving ? '保存中...' : '💾 保存配置'}}
+  </button>
+
+  <!-- 安全设置 -->
+  <view class="section-card">
+    <view class="section-title">🔒 安全设置</view>
+    <view class="setting-item" bindtap="togglePwdForm">
+      <view class="setting-left">
+        <text class="setting-label">修改密码</text>
+        <text class="setting-desc">定期修改密码保障安全</text>
+      </view>
+      <text class="arrow-right">{{showPwdForm ? '▲' : '▶'}}</text>
+    </view>
+
+    <view wx:if="{{showPwdForm}}" class="pwd-form">
+      <view class="divider"></view>
+      <view class="pwd-input-wrap">
+        <text class="pwd-label">原密码</text>
+        <input class="pwd-input" password type="safe-password" placeholder="请输入原密码"
+          placeholder-style="color:rgba(200,216,232,0.3)"
+          bindinput="onOldPwdInput" value="{{oldPwd}}" />
+      </view>
+      <view class="pwd-input-wrap">
+        <text class="pwd-label">新密码</text>
+        <input class="pwd-input" password type="safe-password" placeholder="至少6位"
+          placeholder-style="color:rgba(200,216,232,0.3)"
+          bindinput="onNewPwdInput" value="{{newPwd}}" />
+      </view>
+      <view class="pwd-input-wrap">
+        <text class="pwd-label">确认新密码</text>
+        <input class="pwd-input" password type="safe-password" placeholder="再次输入新密码"
+          placeholder-style="color:rgba(200,216,232,0.3)"
+          bindinput="onConfirmPwdInput" value="{{confirmPwd}}" />
+      </view>
+      <button class="pwd-save-btn" bindtap="changePassword" disabled="{{pwdSaving}}" loading="{{pwdSaving}}">
+        {{pwdSaving ? '修改中...' : '确认修改'}}
+      </button>
+    </view>
+  </view>
+
+  <!-- 退出登录 -->
+  <button class="logout-btn" bindtap="logout">
+    <text>🚪 退出登录</text>
+  </button>
+
+  <view style="height:40rpx"></view>
+</view>
