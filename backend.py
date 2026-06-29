@@ -30,15 +30,40 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # ─── MySQL 连接配置 ─────────────────────────────────────────────────────────
-DB_CONFIG: Dict[str, Any] = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "root",
-    "password": "123456",
-    "db": "drowning_alarm",
-    "charset": "utf8mb4",
-    "autocommit": True,
-}
+# 本地开发用默认值，云部署通过环境变量 DATABASE_URL 或单独变量覆盖
+def _build_db_config() -> Dict[str, Any]:
+    """从环境变量构建数据库配置，支持 DATABASE_URL（PlanetScale）和逐项配置"""
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        # DATABASE_URL 格式: mysql://user:password@host:port/database
+        # PlanetScale URL 格式: mysql://user:password@host/database?ssl-mode=VERIFY_IDENTITY
+        import urllib.parse
+        parsed = urllib.parse.urlparse(database_url)
+        cfg = {
+            "host": parsed.hostname or "127.0.0.1",
+            "port": parsed.port or 3306,
+            "user": parsed.username or "root",
+            "password": parsed.password or "",
+            "db": parsed.path.lstrip("/") or "drowning_alarm",
+            "charset": "utf8mb4",
+            "autocommit": True,
+        }
+        # PlanetScale 要求 SSL 连接
+        if parsed.hostname and ("psdb.cloud" in parsed.hostname or "planetscale" in parsed.hostname):
+            cfg["ssl"] = True
+        return cfg
+    # 逐项环境变量覆盖（Render 环境变量面板）
+    return {
+        "host": os.environ.get("DB_HOST", "127.0.0.1"),
+        "port": int(os.environ.get("DB_PORT", "3306")),
+        "user": os.environ.get("DB_USER", "root"),
+        "password": os.environ.get("DB_PASSWORD", "123456"),
+        "db": os.environ.get("DB_NAME", "drowning_alarm"),
+        "charset": "utf8mb4",
+        "autocommit": True,
+    }
+
+DB_CONFIG: Dict[str, Any] = _build_db_config()
 
 # ─── 全局状态 ───────────────────────────────────────────────────────────────
 db_pool: Optional[aiomysql.Pool] = None
