@@ -60,3 +60,9 @@ alarms.db
 nul
 新建 DOCX 文档.docx
 pose_landmarker_lite .task
+
+# ngrok (local only, not for deployment)
+ngrok/
+
+# Delivery docs (local only)
+交付说明.md

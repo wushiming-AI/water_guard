@@ -1369,4 +1369,5 @@ async def health():
 
 # ─── 入口 ────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    uvicorn.run("backend:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", 8000))  # Render 云部署使用 $PORT，本地默认 8000
+    uvicorn.run("backend:app", host="0.0.0.0", port=port, reload=False)

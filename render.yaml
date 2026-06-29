@@ -1,0 +1,23 @@
+services:
+  # ── PostgreSQL 数据库（免费版） ──
+  - type: psql
+    name: water-guard-db
+    plan: free          # 免费版：90天自动过期，需续期
+
+  # ── Web 服务（后端 API + 前端页面） ──
+  - type: web
+    name: water-guard-api
+    runtime: python
+    plan: free          # 免费版：750小时/月
+    buildCommand: pip install -r requirements-cloud.txt
+    startCommand: uvicorn backend:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DB_ENGINE
+        value: postgresql
+      - key: PYTHON_VERSION
+        value: 3.9.13
+      - fromService:
+          name: water-guard-db
+          type: psql
+          property: connectionString
+        key: DATABASE_URL
