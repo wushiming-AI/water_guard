@@ -50,4 +50,13 @@ node_modules/
 
 # Icons cache
 static/icons/
+
+# Alarm data (runtime generated)
+alarm_snapshots/
+alarm_images/
+alarms.db
+
+# Unused files
 nul
+新建 DOCX 文档.docx
+pose_landmarker_lite .task

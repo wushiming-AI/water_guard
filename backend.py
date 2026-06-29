@@ -1,8 +1,9 @@
 """
 水域溺水防控AI预警系统 - 后端服务
-基于 FastAPI + aiomysql + MySQL
+基于 FastAPI + asyncpg (PostgreSQL) / aiomysql (MySQL)
 v4.0 — 多摄像头支持、用户管理、摄像头检测、实时数据推送
        新增：DeepSORT跟踪、CBAM检测、多端联动报警、泳池平面图、双模态融合
+       支持云部署：通过 DATABASE_URL 环境变量自动切换 PostgreSQL/MySQL
 """
 import asyncio
 import base64
@@ -13,11 +14,11 @@ import os
 import platform
 import subprocess
 import time
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional
 
-import aiomysql
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,16 +30,55 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# ─── MySQL 连接配置 ─────────────────────────────────────────────────────────
-# 本地开发用默认值，云部署通过环境变量 DATABASE_URL 或单独变量覆盖
-def _build_db_config() -> Dict[str, Any]:
-    """从环境变量构建数据库配置，支持 DATABASE_URL（PlanetScale）和逐项配置"""
-    database_url = os.environ.get("DATABASE_URL")
-    if database_url:
-        # DATABASE_URL 格式: mysql://user:password@host:port/database
-        # PlanetScale URL 格式: mysql://user:password@host/database?ssl-mode=VERIFY_IDENTITY
-        import urllib.parse
-        parsed = urllib.parse.urlparse(database_url)
+# ─── 数据库配置 ────────────────────────────────────────────────────────────
+# 支持 PostgreSQL（云部署）和 MySQL（本地开发），通过 DATABASE_URL 自动切换
+DB_ENGINE = os.environ.get("DB_ENGINE", "").lower()  # "postgresql" or "mysql"
+
+def _detect_db_engine(database_url: str) -> str:
+    """从 DATABASE_URL 的协议前缀推断数据库引擎"""
+    if database_url.startswith("postgres://") or database_url.startswith("postgresql://"):
+        return "postgresql"
+    if database_url.startswith("mysql://"):
+        return "mysql"
+    return "postgresql"  # 默认 PostgreSQL（Render 云部署）
+
+database_url = os.environ.get("DATABASE_URL", "")
+if database_url:
+    DB_ENGINE = _detect_db_engine(database_url)
+else:
+    # 本地开发默认 MySQL，除非显式指定
+    DB_ENGINE = DB_ENGINE or "mysql"
+
+logger_db = logging.getLogger(__name__)
+
+if DB_ENGINE == "postgresql":
+    import asyncpg
+    _DB_DRIVER = "asyncpg"
+else:
+    import aiomysql
+    _DB_DRIVER = "aiomysql"
+
+def _build_pg_dsn() -> str:
+    """构建 PostgreSQL DSN（asyncpg 使用单一连接字符串）"""
+    url = os.environ.get("DATABASE_URL", "")
+    if url:
+        # asyncpg 需要 postgres:// 协议
+        if url.startswith("mysql://"):
+            url = url.replace("mysql://", "postgres://", 1)
+        return url
+    # 逐项拼接
+    host = os.environ.get("DB_HOST", "127.0.0.1")
+    port = os.environ.get("DB_PORT", "5432")
+    user = os.environ.get("DB_USER", "postgres")
+    password = os.environ.get("DB_PASSWORD", "")
+    database = os.environ.get("DB_NAME", "drowning_alarm")
+    return f"postgres://{user}:{password}@{host}:{port}/{database}"
+
+def _build_mysql_config() -> Dict[str, Any]:
+    """构建 MySQL 配置字典（aiomysql 使用参数式连接）"""
+    url = os.environ.get("DATABASE_URL", "")
+    if url and url.startswith("mysql://"):
+        parsed = urllib.parse.urlparse(url)
         cfg = {
             "host": parsed.hostname or "127.0.0.1",
             "port": parsed.port or 3306,
@@ -48,11 +88,9 @@ def _build_db_config() -> Dict[str, Any]:
             "charset": "utf8mb4",
             "autocommit": True,
         }
-        # PlanetScale 要求 SSL 连接
-        if parsed.hostname and ("psdb.cloud" in parsed.hostname or "planetscale" in parsed.hostname):
+        if parsed.hostname and ("psdb.cloud" in parsed.hostname):
             cfg["ssl"] = True
         return cfg
-    # 逐项环境变量覆盖（Render 环境变量面板）
     return {
         "host": os.environ.get("DB_HOST", "127.0.0.1"),
         "port": int(os.environ.get("DB_PORT", "3306")),
@@ -63,10 +101,12 @@ def _build_db_config() -> Dict[str, Any]:
         "autocommit": True,
     }
 
-DB_CONFIG: Dict[str, Any] = _build_db_config()
+# PostgreSQL 使用 DSN 字符串，MySQL 使用配置字典
+PG_DSN = _build_pg_dsn() if DB_ENGINE == "postgresql" else None
+MYSQL_CONFIG = _build_mysql_config() if DB_ENGINE == "mysql" else None
 
 # ─── 全局状态 ───────────────────────────────────────────────────────────────
-db_pool: Optional[aiomysql.Pool] = None
+db_pool: Any = None  # asyncpg.Pool or aiomysql.Pool
 camera_frames: Dict[str, bytes] = {}               # 每个摄像头的最新帧 {camera_id: JPEG bytes}
 camera_frame_events: Dict[str, asyncio.Event] = {}  # 每个摄像头的帧更新事件
 camera_heartbeats: Dict[str, float] = {}            # 每个摄像头最后心跳时间 {camera_id: timestamp}
@@ -75,6 +115,163 @@ start_time: float = time.time()                     # 服务启动时间
 FRAME_MAX_SIZE: int = 5 * 1024 * 1024               # 帧大小上限 5MB
 WS_HEARTBEAT_TIMEOUT: float = 60.0                  # WebSocket 心跳超时（秒）
 CAMERA_OFFLINE_TIMEOUT: float = 30.0                 # 摄像头离线超时（秒）
+
+
+# ─── 数据库操作抽象层 ────────────────────────────────────────────────────────
+# 统一 asyncpg 和 aiomysql 的 API，让业务代码无需关心底层驱动差异
+class DB:
+    """数据库操作抽象层，兼容 PostgreSQL (asyncpg) 和 MySQL (aiomysql)"""
+
+    @staticmethod
+    def placeholder(n: int) -> str:
+        """返回 n 个参数占位符：PostgreSQL 用 $1,$2,... MySQL 用 %s,%s,..."""
+        if DB_ENGINE == "postgresql":
+            return ",".join(f"${i}" for i in range(1, n + 1))
+        return ",".join(["%s"] * n)
+
+    @staticmethod
+    def placeholder_seq(start: int, n: int) -> str:
+        """返回从 start 编号的 n 个参数占位符（用于多字段 UPDATE）"""
+        if DB_ENGINE == "postgresql":
+            return ",".join(f"${i}" for i in range(start, start + n))
+        return ",".join(["%s"] * n)
+
+    @staticmethod
+    def placeholder_at(pos: int) -> str:
+        """返回单个占位符，PostgreSQL 用 $pos，MySQL 用 %s"""
+        if DB_ENGINE == "postgresql":
+            return f"${pos}"
+        return "%s"
+
+    @staticmethod
+    async def execute(sql: str, args: tuple = ()) -> Any:
+        """执行一条 SQL，返回结果（PG: 无/状态字符串，MySQL: 需用 cursor）"""
+        if db_pool is None:
+            return None
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                return await conn.execute(sql, *args)
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    await conn.commit()
+                    return cur
+
+    @staticmethod
+    async def execute_return_id(sql: str, args: tuple = ()) -> Optional[int]:
+        """执行 INSERT 并返回新行的 id"""
+        if db_pool is None:
+            return None
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                return await conn.fetchval(sql, *args)
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    await conn.commit()
+                    return cur.lastrowid
+
+    @staticmethod
+    async def fetchone(sql: str, args: tuple = ()) -> Optional[tuple]:
+        """查询一行"""
+        if db_pool is None:
+            return None
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow(sql, *args)
+                if row is None:
+                    return None
+                # asyncpg 返回 Record 对象，转为 tuple 兼容
+                return tuple(row.values())
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    row = await cur.fetchone()
+                    return row  # MySQL cursor 返回 tuple
+
+    @staticmethod
+    async def fetchone_with_desc(sql: str, args: tuple = ()) -> Optional[Dict]:
+        """查询一行，返回 {columns, row}（兼容 _rows_to_list）"""
+        if db_pool is None:
+            return None
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow(sql, *args)
+                if row is None:
+                    return None
+                cols = list(row.keys())
+                values = tuple(row.values())
+                return {"columns": cols, "row": values}
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    row = await cur.fetchone()
+                    if row is None:
+                        return None
+                    cols = [col[0] for col in cur.description]
+                    return {"columns": cols, "row": row}
+
+    @staticmethod
+    async def fetchall(sql: str, args: tuple = ()) -> List[tuple]:
+        """查询所有行"""
+        if db_pool is None:
+            return []
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch(sql, *args)
+                return [tuple(r.values()) for r in rows]
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    return await cur.fetchall()
+
+    @staticmethod
+    async def fetchall_with_desc(sql: str, args: tuple = ()) -> Optional[Dict]:
+        """查询所有行，返回 {columns, rows}（兼容 _rows_to_list）"""
+        if db_pool is None:
+            return None
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch(sql, *args)
+                if not rows:
+                    return {"columns": [], "rows": []}
+                cols = list(rows[0].keys())
+                values = [tuple(r.values()) for r in rows]
+                return {"columns": cols, "rows": values}
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    rows = await cur.fetchall()
+                    cols = [col[0] for col in cur.description]
+                    return {"columns": cols, "rows": rows}
+
+    @staticmethod
+    async def fetchval(sql: str, args: tuple = ()) -> Any:
+        """查询单个值（第一行第一列）"""
+        if db_pool is None:
+            return None
+        if DB_ENGINE == "postgresql":
+            async with db_pool.acquire() as conn:
+                return await conn.fetchval(sql, *args)
+        else:
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, args)
+                    row = await cur.fetchone()
+                    return row[0] if row else None
+
+    @staticmethod
+    async def commit():
+        """提交事务（MySQL 需要，asyncpg 自动提交）"""
+        if DB_ENGINE == "mysql" and db_pool:
+            # aiomysql 的 autocommit=True 已自动提交，无需手动
+            pass
 
 
 # ─── 占位图（运行时生成有效 JPEG）──────────────────────────────────────────
@@ -163,7 +360,60 @@ class CameraHeartbeat(BaseModel):
 
 
 # ─── 数据库初始化 SQL ────────────────────────────────────────────────────────
-INIT_SQL = """
+INIT_SQL_PG = """
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    role VARCHAR(20) DEFAULT 'user',
+    nickname VARCHAR(50) DEFAULT '',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS alarms (
+    id SERIAL PRIMARY KEY,
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    location VARCHAR(255) DEFAULT '未知位置',
+    message TEXT,
+    level VARCHAR(20) DEFAULT 'warning',
+    status VARCHAR(20) DEFAULT 'unread',
+    image_path TEXT
+);
+
+CREATE TABLE IF NOT EXISTS cameras (
+    id SERIAL PRIMARY KEY,
+    camera_id VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    source VARCHAR(255) NOT NULL DEFAULT '0',
+    location VARCHAR(255) DEFAULT '',
+    status VARCHAR(20) DEFAULT 'offline',
+    resolution VARCHAR(20) DEFAULT '',
+    last_frame_time TIMESTAMP,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    device_id VARCHAR(50) UNIQUE,
+    device_type VARCHAR(20) DEFAULT 'camera',
+    location TEXT,
+    ip_address VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'online',
+    camera_id VARCHAR(50) DEFAULT NULL,
+    last_online TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    id SERIAL PRIMARY KEY,
+    key_name VARCHAR(100) UNIQUE NOT NULL,
+    value TEXT,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+INIT_SQL_MYSQL = """
 CREATE TABLE IF NOT EXISTS users (
     id INT PRIMARY KEY AUTO_INCREMENT,
     phone VARCHAR(20) NOT NULL UNIQUE,
@@ -216,7 +466,30 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 """
 
-DEFAULT_INSERTS = [
+INIT_SQL = INIT_SQL_PG if DB_ENGINE == "postgresql" else INIT_SQL_MYSQL
+
+DEFAULT_INSERTS_PG = [
+    """INSERT INTO users (phone, password, role, nickname)
+       VALUES ('13800138000', '123456', 'admin', '系统管理员')
+       ON CONFLICT (phone) DO NOTHING""",
+    """INSERT INTO cameras (camera_id, name, source, location, status) VALUES
+         ('CAM-001', '1号摄像头', '0', '东区', 'offline'),
+         ('CAM-002', '2号摄像头', '1', '西区', 'offline')
+       ON CONFLICT (camera_id) DO NOTHING""",
+    """INSERT INTO devices (name, device_id, device_type, location, ip_address, status, camera_id) VALUES
+         ('1号摄像头', 'CAM-001', 'camera', '东区', '192.168.5.3', 'offline', 'CAM-001'),
+         ('2号摄像头', 'CAM-002', 'camera', '西区', '192.168.5.3', 'offline', 'CAM-002')
+       ON CONFLICT (device_id) DO NOTHING""",
+    """INSERT INTO settings (key_name, value) VALUES
+         ('sensitivity', '80'),
+         ('sound_alarm', 'true'),
+         ('push_notify', 'true'),
+         ('auto_record', 'false'),
+         ('server_url', 'http://127.0.0.1:8000')
+       ON CONFLICT (key_name) DO NOTHING""",
+]
+
+DEFAULT_INSERTS_MYSQL = [
     """INSERT IGNORE INTO users (phone, password, role, nickname)
        VALUES ('13800138000', '123456', 'admin', '系统管理员')""",
     """INSERT IGNORE INTO cameras (camera_id, name, source, location, status) VALUES
@@ -232,6 +505,8 @@ DEFAULT_INSERTS = [
          ('auto_record', 'false'),
          ('server_url', 'http://127.0.0.1:8000')""",
 ]
+
+DEFAULT_INSERTS = DEFAULT_INSERTS_PG if DB_ENGINE == "postgresql" else DEFAULT_INSERTS_MYSQL
 
 
 # ─── WebSocket 广播工具 ─────────────────────────────────────────────────────
@@ -261,15 +536,12 @@ async def camera_offline_checker():
                 offline_ids.append(cam_id)
         if offline_ids and db_pool:
             try:
-                async with db_pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        for cam_id in offline_ids:
-                            await cur.execute(
-                                "UPDATE cameras SET status='offline' WHERE camera_id=%s AND status='online'",
-                                (cam_id,),
-                            )
-                            camera_heartbeats.pop(cam_id, None)
-                        await conn.commit()
+                for cam_id in offline_ids:
+                    await DB.execute(
+                        f"UPDATE cameras SET status='offline' WHERE camera_id={DB.placeholder_at(1)} AND status='online'",
+                        (cam_id,),
+                    )
+                    camera_heartbeats.pop(cam_id, None)
                 if offline_ids:
                     logger.info(f"摄像头心跳超时，已标记离线：{offline_ids}")
                     await broadcast_event("camera_update", {"camera_ids": offline_ids, "status": "offline"})
@@ -281,20 +553,30 @@ async def camera_offline_checker():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global db_pool
-    logger.info("正在连接 MySQL 并初始化数据库...")
+    db_label = "PostgreSQL" if DB_ENGINE == "postgresql" else "MySQL"
+    logger.info(f"正在连接 {db_label} 并初始化数据库...")
     try:
-        db_pool = await aiomysql.create_pool(**DB_CONFIG, minsize=2, maxsize=10)
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
+        if DB_ENGINE == "postgresql":
+            db_pool = await asyncpg.create_pool(dsn=PG_DSN, min_size=2, max_size=10)
+            async with db_pool.acquire() as conn:
                 for stmt in INIT_SQL.strip().split(";"):
                     stmt = stmt.strip()
                     if stmt:
-                        await cur.execute(stmt)
-                # 逐条执行默认数据插入
+                        await conn.execute(stmt)
                 for stmt in DEFAULT_INSERTS:
-                    await cur.execute(stmt)
-                await conn.commit()
-        logger.info("数据库初始化完成 ✓")
+                    await conn.execute(stmt)
+        else:
+            db_pool = await aiomysql.create_pool(**MYSQL_CONFIG, minsize=2, maxsize=10)
+            async with db_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    for stmt in INIT_SQL.strip().split(";"):
+                        stmt = stmt.strip()
+                        if stmt:
+                            await cur.execute(stmt)
+                    for stmt in DEFAULT_INSERTS:
+                        await cur.execute(stmt)
+                    await conn.commit()
+        logger.info(f"{db_label} 数据库初始化完成 ✓")
     except Exception as exc:
         logger.error(f"数据库连接失败：{exc}")
         logger.warning("将以无数据库模式运行（部分功能不可用）")
@@ -307,8 +589,11 @@ async def lifespan(app: FastAPI):
 
     # 关闭时清理
     if db_pool:
-        db_pool.close()
-        await db_pool.wait_closed()
+        if DB_ENGINE == "postgresql":
+            await db_pool.close()
+        else:
+            db_pool.close()
+            await db_pool.wait_closed()
         logger.info("数据库连接池已关闭")
     logger.info("服务已停止")
 
@@ -356,12 +641,12 @@ async def log_requests(request: Request, call_next):
 
 
 # ─── 工具函数 ────────────────────────────────────────────────────────────────
-def _rows_to_list(cursor: aiomysql.Cursor, rows: tuple) -> List[Dict[str, Any]]:
-    cols = [col[0] for col in cursor.description]
+def _rows_to_list(columns: List[str], rows: List[tuple]) -> List[Dict[str, Any]]:
+    """将查询结果转为字典列表，兼容 PG 和 MySQL"""
     result = []
     for row in rows:
         item: Dict[str, Any] = {}
-        for col, val in zip(cols, row):
+        for col, val in zip(columns, row):
             if isinstance(val, datetime):
                 item[col] = val.strftime("%Y-%m-%d %H:%M:%S")
             elif isinstance(val, date):
@@ -394,13 +679,10 @@ async def login(req: LoginRequest):
         return JSONResponse({"success": False, "msg": "数据库不可用"}, status_code=503)
     if not req.phone or not req.password:
         return JSONResponse({"success": False, "msg": "手机号和密码不能为空"}, status_code=400)
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                "SELECT id, phone, role, nickname FROM users WHERE phone=%s AND password=%s",
-                (req.phone, req.password),
-            )
-            row = await cur.fetchone()
+    row = await DB.fetchone(
+        f"SELECT id, phone, role, nickname FROM users WHERE phone={DB.placeholder_at(1)} AND password={DB.placeholder_at(2)}",
+        (req.phone, req.password),
+    )
     if row:
         logger.info(f"用户登录成功：{req.phone}")
         return {"success": True, "msg": "登录成功", "data": {"user": {"id": row[0], "phone": row[1], "role": row[2], "nickname": row[3] or ""}}}
@@ -415,22 +697,17 @@ async def change_password(req: ChangePasswordRequest):
         return JSONResponse({"success": False, "msg": "数据库不可用"}, status_code=503)
     if not req.new_password or len(req.new_password) < 6:
         return JSONResponse({"success": False, "msg": "新密码不能少于6位"}, status_code=400)
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                "SELECT id FROM users WHERE phone=%s AND password=%s",
-                (req.phone, req.old_password),
-            )
-            row = await cur.fetchone()
-            if not row:
-                return JSONResponse({"success": False, "msg": "原密码错误"}, status_code=400)
-            await cur.execute(
-                "UPDATE users SET password=%s WHERE phone=%s",
-                (req.new_password, req.phone),
-            )
-            await conn.commit()
+    row = await DB.fetchone(
+        f"SELECT id FROM users WHERE phone={DB.placeholder_at(1)} AND password={DB.placeholder_at(2)}",
+        (req.phone, req.old_password),
+    )
+    if not row:
+        return JSONResponse({"success": False, "msg": "原密码错误"}, status_code=400)
+    await DB.execute(
+        f"UPDATE users SET password={DB.placeholder_at(1)} WHERE phone={DB.placeholder_at(2)}",
+        (req.new_password, req.phone),
+    )
     logger.info(f"用户修改密码成功：{req.phone}")
-    # 广播密码修改事件
     await broadcast_event("user_update", {"phone": req.phone, "action": "password_changed"})
     return {"success": True, "msg": "密码修改成功"}
 
@@ -444,11 +721,12 @@ async def list_users():
     if db_pool is None:
         return []
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT id, phone, role, nickname, create_time FROM users ORDER BY id")
-                rows = await cur.fetchall()
-                return _rows_to_list(cur, rows)
+        result = await DB.fetchall_with_desc(
+            "SELECT id, phone, role, nickname, create_time FROM users ORDER BY id"
+        )
+        if result is None:
+            return []
+        return _rows_to_list(result["columns"], result["rows"])
     except Exception as exc:
         logger.error(f"查询用户列表失败：{exc}")
         return []
@@ -464,20 +742,25 @@ async def create_user(user: UserCreate):
     if len(user.password) < 6:
         raise HTTPException(status_code=400, detail="密码不能少于6位")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO users (phone, password, role, nickname) VALUES (%s, %s, %s, %s)",
-                    (user.phone, user.password, user.role or "user", user.nickname or ""),
-                )
-                await conn.commit()
-                new_id = cur.lastrowid
+        if DB_ENGINE == "postgresql":
+            new_id = await DB.execute_return_id(
+                f"INSERT INTO users (phone, password, role, nickname) VALUES ({DB.placeholder(4)}) RETURNING id",
+                (user.phone, user.password, user.role or "user", user.nickname or ""),
+            )
+        else:
+            new_id = await DB.execute_return_id(
+                f"INSERT INTO users (phone, password, role, nickname) VALUES ({DB.placeholder(4)})",
+                (user.phone, user.password, user.role or "user", user.nickname or ""),
+            )
         logger.info(f"新用户已创建：{user.phone} (角色: {user.role})")
         await broadcast_event("user_update", {"action": "created", "phone": user.phone})
         return {"success": True, "id": new_id, "msg": "用户创建成功"}
-    except aiomysql.IntegrityError:
-        raise HTTPException(status_code=400, detail="该手机号已注册")
     except Exception as exc:
+        # PostgreSQL: UniqueViolation → asyncpg.exceptions.UniqueViolationError
+        # MySQL: IntegrityError → aiomysql.IntegrityError
+        exc_name = type(exc).__name__
+        if "Unique" in exc_name or "Integrity" in exc_name:
+            raise HTTPException(status_code=400, detail="该手机号已注册")
         logger.error(f"创建用户失败：{exc}")
         raise HTTPException(status_code=500, detail="创建用户失败")
 
@@ -488,15 +771,16 @@ async def delete_user(user_id: int):
     if db_pool is None:
         raise HTTPException(status_code=503, detail="数据库不可用")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                # 不允许删除管理员账号（id=1）
-                await cur.execute("SELECT id, role FROM users WHERE id=%s", (user_id,))
-                row = await cur.fetchone()
-                if not row:
-                    raise HTTPException(status_code=404, detail="用户不存在")
-                await cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
-                await conn.commit()
+        row = await DB.fetchone(
+            f"SELECT id, role FROM users WHERE id={DB.placeholder_at(1)}",
+            (user_id,),
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        await DB.execute(
+            f"DELETE FROM users WHERE id={DB.placeholder_at(1)}",
+            (user_id,),
+        )
         logger.info(f"用户已删除：id={user_id}")
         await broadcast_event("user_update", {"action": "deleted", "user_id": user_id})
         return {"success": True, "msg": "用户已删除"}
@@ -516,19 +800,21 @@ async def get_stats():
     if db_pool is None:
         return {"online_devices": 0, "today_alarms": 0, "today_urgent": 0, "today_records": 0, "person_count": 0, "run_hours": 0, "online_cameras": 0}
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT COUNT(*) FROM devices WHERE status='online'")
-                online_devices = (await cur.fetchone())[0]
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                await cur.execute("SELECT COUNT(*) FROM alarms WHERE DATE(time)=%s", (today_str,))
-                today_alarms = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM alarms WHERE DATE(time)=%s AND level='urgent'", (today_str,))
-                today_urgent = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM alarms WHERE DATE(time)=%s AND level='info'", (today_str,))
-                today_records = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM cameras WHERE status='online'")
-                online_cameras = (await cur.fetchone())[0]
+        online_devices = await DB.fetchval("SELECT COUNT(*) FROM devices WHERE status='online'")
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_alarms = await DB.fetchval(
+            f"SELECT COUNT(*) FROM alarms WHERE DATE(time)={DB.placeholder_at(1)}",
+            (today_str,),
+        )
+        today_urgent = await DB.fetchval(
+            f"SELECT COUNT(*) FROM alarms WHERE DATE(time)={DB.placeholder_at(1)} AND level='urgent'",
+            (today_str,),
+        )
+        today_records = await DB.fetchval(
+            f"SELECT COUNT(*) FROM alarms WHERE DATE(time)={DB.placeholder_at(1)} AND level='info'",
+            (today_str,),
+        )
+        online_cameras = await DB.fetchval("SELECT COUNT(*) FROM cameras WHERE status='online'")
     except Exception as exc:
         logger.error(f"查询统计失败：{exc}")
         return {"online_devices": 0, "today_alarms": 0, "today_urgent": 0, "today_records": 0, "person_count": 0, "run_hours": 0, "online_cameras": 0}
@@ -563,14 +849,11 @@ async def receive_alarm(payload: AlarmPayload):
 
     if db_pool:
         try:
-            async with db_pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "INSERT INTO alarms (time, location, message, level, status, image_path) "
-                        "VALUES (%s, %s, %s, %s, 'unread', %s)",
-                        (ts, location, note, level, payload.image_path),
-                    )
-                    await conn.commit()
+            await DB.execute(
+                f"INSERT INTO alarms (time, location, message, level, status, image_path) "
+                f"VALUES ({DB.placeholder(6)})",
+                (ts, location, note, level, 'unread', payload.image_path),
+            )
         except Exception as exc:
             logger.error(f"报警写入数据库失败：{exc}")
 
@@ -607,25 +890,27 @@ async def get_alarms(date_str: Optional[str] = None, level: Optional[str] = None
     if db_pool is None:
         return []
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                conditions = []
-                params = []
-                if date_str:
-                    conditions.append("DATE(time)=%s")
-                    params.append(date_str)
-                if level:
-                    conditions.append("level=%s")
-                    params.append(level)
-                where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
-                sql = (
-                    "SELECT id, time, location, message, level, status FROM alarms"
-                    + where
-                    + " ORDER BY time DESC LIMIT 200"
-                )
-                await cur.execute(sql, params)
-                rows = await cur.fetchall()
-                return _rows_to_list(cur, rows)
+        conditions = []
+        params = []
+        param_idx = 1
+        if date_str:
+            conditions.append(f"DATE(time)={DB.placeholder_at(param_idx)}")
+            params.append(date_str)
+            param_idx += 1
+        if level:
+            conditions.append(f"level={DB.placeholder_at(param_idx)}")
+            params.append(level)
+            param_idx += 1
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        sql = (
+            "SELECT id, time, location, message, level, status FROM alarms"
+            + where
+            + " ORDER BY time DESC LIMIT 200"
+        )
+        result = await DB.fetchall_with_desc(sql, tuple(params))
+        if result is None:
+            return []
+        return _rows_to_list(result["columns"], result["rows"])
     except Exception as exc:
         logger.error(f"查询报警记录失败：{exc}")
         return []
@@ -676,14 +961,13 @@ async def list_cameras():
     if db_pool is None:
         return []
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, camera_id, name, source, location, status, resolution, last_frame_time, create_time "
-                    "FROM cameras ORDER BY id"
-                )
-                rows = await cur.fetchall()
-                return _rows_to_list(cur, rows)
+        result = await DB.fetchall_with_desc(
+            "SELECT id, camera_id, name, source, location, status, resolution, last_frame_time, create_time "
+            "FROM cameras ORDER BY id"
+        )
+        if result is None:
+            return []
+        return _rows_to_list(result["columns"], result["rows"])
     except Exception as exc:
         logger.error(f"查询摄像头列表失败：{exc}")
         return []
@@ -695,20 +979,23 @@ async def create_camera(name: str, camera_id: str, source: str = "0", location: 
     if db_pool is None:
         raise HTTPException(status_code=503, detail="数据库不可用")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO cameras (camera_id, name, source, location, status) VALUES (%s, %s, %s, %s, %s)",
-                    (camera_id, name, source, location, 'offline'),
-                )
-                await conn.commit()
-                new_id = cur.lastrowid
+        if DB_ENGINE == "postgresql":
+            new_id = await DB.execute_return_id(
+                f"INSERT INTO cameras (camera_id, name, source, location, status) VALUES ({DB.placeholder(5)}) RETURNING id",
+                (camera_id, name, source, location, 'offline'),
+            )
+        else:
+            new_id = await DB.execute_return_id(
+                f"INSERT INTO cameras (camera_id, name, source, location, status) VALUES ({DB.placeholder(5)})",
+                (camera_id, name, source, location, 'offline'),
+            )
         logger.info(f"新摄像头已注册：{name} ({camera_id})")
         await broadcast_event("camera_update", {"camera_id": camera_id, "action": "created"})
         return {"success": True, "id": new_id, "msg": "摄像头已注册"}
-    except aiomysql.IntegrityError:
-        raise HTTPException(status_code=400, detail="摄像头ID已存在")
     except Exception as exc:
+        exc_name = type(exc).__name__
+        if "Unique" in exc_name or "Integrity" in exc_name:
+            raise HTTPException(status_code=400, detail="摄像头ID已存在")
         logger.error(f"注册摄像头失败：{exc}")
         raise HTTPException(status_code=500, detail="注册摄像头失败")
 
@@ -719,10 +1006,10 @@ async def delete_camera(camera_id: str):
     if db_pool is None:
         raise HTTPException(status_code=503, detail="数据库不可用")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM cameras WHERE camera_id=%s", (camera_id,))
-                await conn.commit()
+        await DB.execute(
+            f"DELETE FROM cameras WHERE camera_id={DB.placeholder_at(1)}",
+            (camera_id,),
+        )
         camera_frames.pop(camera_id, None)
         camera_heartbeats.pop(camera_id, None)
         logger.info(f"摄像头已删除：{camera_id}")
@@ -740,21 +1027,27 @@ async def camera_heartbeat(camera_id: str, payload: CameraHeartbeat):
 
     if db_pool:
         try:
-            async with db_pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    # 如果摄像头不在数据库中，自动注册
-                    await cur.execute("SELECT id FROM cameras WHERE camera_id=%s", (camera_id,))
-                    if await cur.fetchone():
-                        await cur.execute(
-                            "UPDATE cameras SET status='online', resolution=%s, last_frame_time=NOW() WHERE camera_id=%s",
-                            (payload.resolution or "", camera_id),
-                        )
-                    else:
-                        await cur.execute(
-                            "INSERT INTO cameras (camera_id, name, source, location, status, resolution) VALUES (%s, %s, %s, %s, 'online', %s)",
-                            (camera_id, f"摄像头 {camera_id}", "0", "", payload.resolution or ""),
-                        )
-                    await conn.commit()
+            existing = await DB.fetchone(
+                f"SELECT id FROM cameras WHERE camera_id={DB.placeholder_at(1)}",
+                (camera_id,),
+            )
+            if existing:
+                # PG: NOW()  MySQL: NOW() 都支持
+                await DB.execute(
+                    f"UPDATE cameras SET status='online', resolution={DB.placeholder_at(1)}, last_frame_time=NOW() WHERE camera_id={DB.placeholder_at(2)}",
+                    (payload.resolution or "", camera_id),
+                )
+            else:
+                if DB_ENGINE == "postgresql":
+                    await DB.execute_return_id(
+                        f"INSERT INTO cameras (camera_id, name, source, location, status, resolution) VALUES ({DB.placeholder(6)}) RETURNING id",
+                        (camera_id, f"摄像头 {camera_id}", "0", "", 'online', payload.resolution or ""),
+                    )
+                else:
+                    await DB.execute_return_id(
+                        f"INSERT INTO cameras (camera_id, name, source, location, status, resolution) VALUES ({DB.placeholder(6)})",
+                        (camera_id, f"摄像头 {camera_id}", "0", "", 'online', payload.resolution or ""),
+                    )
         except Exception as exc:
             logger.error(f"摄像头心跳更新失败：{exc}")
 
@@ -864,14 +1157,13 @@ async def list_devices():
     if db_pool is None:
         return []
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id, name, device_id, device_type, location, ip_address, status, camera_id, last_online, create_time "
-                    "FROM devices ORDER BY id"
-                )
-                rows = await cur.fetchall()
-                return _rows_to_list(cur, rows)
+        result = await DB.fetchall_with_desc(
+            "SELECT id, name, device_id, device_type, location, ip_address, status, camera_id, last_online, create_time "
+            "FROM devices ORDER BY id"
+        )
+        if result is None:
+            return []
+        return _rows_to_list(result["columns"], result["rows"])
     except Exception as exc:
         logger.error(f"查询设备列表失败：{exc}")
         return []
@@ -884,22 +1176,26 @@ async def create_device(device: DeviceCreate):
     if not device.name or not device.name.strip():
         raise HTTPException(status_code=400, detail="设备名称不能为空")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO devices (name, device_id, device_type, location, ip_address, status) "
-                    "VALUES (%s, %s, 'camera', %s, %s, %s)",
-                    (device.name.strip(), device.device_id, device.location, device.ip_address, device.status),
-                )
-                await conn.commit()
-                new_id = cur.lastrowid
+        if DB_ENGINE == "postgresql":
+            new_id = await DB.execute_return_id(
+                f"INSERT INTO devices (name, device_id, device_type, location, ip_address, status) "
+                f"VALUES ({DB.placeholder(6)}) RETURNING id",
+                (device.name.strip(), device.device_id, 'camera', device.location, device.ip_address, device.status),
+            )
+        else:
+            new_id = await DB.execute_return_id(
+                f"INSERT INTO devices (name, device_id, device_type, location, ip_address, status) "
+                f"VALUES ({DB.placeholder(6)})",
+                (device.name.strip(), device.device_id, 'camera', device.location, device.ip_address, device.status),
+            )
         logger.info(f"新设备已添加：{device.name}")
         await broadcast_event("device_update", {"action": "created", "name": device.name})
         await broadcast_event("stats_update", {})
         return {"success": True, "id": new_id, "msg": "设备已添加"}
-    except aiomysql.IntegrityError:
-        raise HTTPException(status_code=400, detail="设备ID已存在")
     except Exception as exc:
+        exc_name = type(exc).__name__
+        if "Unique" in exc_name or "Integrity" in exc_name:
+            raise HTTPException(status_code=400, detail="设备ID已存在")
         logger.error(f"添加设备失败：{exc}")
         raise HTTPException(status_code=500, detail="添加设备失败")
 
@@ -911,13 +1207,23 @@ async def update_device(device_id: int, device: DeviceUpdate):
     fields = {k: v for k, v in device.dict().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="无更新字段")
-    set_clause = ", ".join(f"{k}=%s" for k in fields)
-    values = list(fields.values()) + [device_id]
+    if DB_ENGINE == "postgresql":
+        # PostgreSQL: key=$1, key=$2, ... WHERE id=$n
+        set_parts = []
+        values = []
+        idx = 1
+        for k, v in fields.items():
+            set_parts.append(f"{k}={DB.placeholder_at(idx)}")
+            values.append(v)
+            idx += 1
+        values.append(device_id)
+        set_clause = ", ".join(set_parts)
+    else:
+        # MySQL: key=%s, key=%s, ... WHERE id=%s
+        set_clause = ", ".join(f"{k}=%s" for k in fields)
+        values = list(fields.values()) + [device_id]
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(f"UPDATE devices SET {set_clause} WHERE id=%s", values)
-                await conn.commit()
+        await DB.execute(f"UPDATE devices SET {set_clause} WHERE id={DB.placeholder_at(len(values))}", tuple(values))
         await broadcast_event("device_update", {"action": "updated", "device_id": device_id})
         await broadcast_event("stats_update", {})
         return {"success": True, "msg": "设备已更新"}
@@ -931,10 +1237,10 @@ async def delete_device(device_id: int):
     if db_pool is None:
         raise HTTPException(status_code=503, detail="数据库不可用")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM devices WHERE id=%s", (device_id,))
-                await conn.commit()
+        await DB.execute(
+            f"DELETE FROM devices WHERE id={DB.placeholder_at(1)}",
+            (device_id,),
+        )
         logger.info(f"设备已删除：id={device_id}")
         await broadcast_event("device_update", {"action": "deleted", "device_id": device_id})
         await broadcast_event("stats_update", {})
@@ -952,10 +1258,7 @@ async def get_settings():
     if db_pool is None:
         return {}
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT key_name, value FROM settings")
-                rows = await cur.fetchall()
+        rows = await DB.fetchall("SELECT key_name, value FROM settings")
         return {row[0]: row[1] for row in rows}
     except Exception as exc:
         logger.error(f"查询设置失败：{exc}")
@@ -967,15 +1270,20 @@ async def save_settings(payload: SettingsBatch):
     if db_pool is None:
         raise HTTPException(status_code=503, detail="数据库不可用")
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                for key, value in payload.settings.items():
-                    await cur.execute(
-                        "INSERT INTO settings (key_name, value) VALUES (%s, %s) "
-                        "ON DUPLICATE KEY UPDATE value=%s",
-                        (key, value, value),
-                    )
-                await conn.commit()
+        if DB_ENGINE == "postgresql":
+            for key, value in payload.settings.items():
+                await DB.execute(
+                    f"INSERT INTO settings (key_name, value) VALUES ({DB.placeholder(2)}) "
+                    f"ON CONFLICT (key_name) DO UPDATE SET value={DB.placeholder_at(3)}",
+                    (key, value, value),
+                )
+        else:
+            for key, value in payload.settings.items():
+                await DB.execute(
+                    "INSERT INTO settings (key_name, value) VALUES (%s, %s) "
+                    "ON DUPLICATE KEY UPDATE value=%s",
+                    (key, value, value),
+                )
         return {"success": True, "msg": "设置已保存"}
     except Exception as exc:
         logger.error(f"保存设置失败：{exc}")
@@ -1048,7 +1356,8 @@ async def health():
     db_status = "ok" if db_pool else "unavailable"
     return {
         "status": "ok",
-        "version": "3.0.0",
+        "version": "4.0.0",
+        "db_engine": DB_ENGINE,
         "time": datetime.now().isoformat(),
         "db": db_status,
         "ws_clients": len(connected_clients),
