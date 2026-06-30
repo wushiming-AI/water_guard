@@ -1,0 +1,7 @@
+{
+  "python": {
+    "version": "3.9",
+    "entry": "backend.py"
+  },
+  "start_command": "uvicorn backend:app --host 0.0.0.0 --port $PORT"
+}
