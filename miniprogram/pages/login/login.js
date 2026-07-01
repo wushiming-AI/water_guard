@@ -9,7 +9,7 @@ Page({
     loading: false,
     errorMsg: '',
     // 服务器地址配置
-    serverUrl: 'https://gills-register-prescribe.ngrok-free.dev',
+    serverUrl: 'https://api.waterguard.online',
     showServerInput: true,   // 默认展开，方便首次配置
     testing: false,
     testResult: '',          // 连接测试结果

@@ -4,7 +4,7 @@
  */
 
 /** 后端服务地址（默认与本机后端一致） */
-let BASE_URL = 'https://gills-register-prescribe.ngrok-free.dev';
+let BASE_URL = 'https://api.waterguard.online';
 
 /** 请求重试配置 */
 const RETRY_CONFIG = {

@@ -6,7 +6,7 @@ const api = require('./utils/api');
 App({
   globalData: {
     userInfo: null,   // 当前登录用户 {id, phone, role}
-    baseUrl: 'https://gills-register-prescribe.ngrok-free.dev',
+    baseUrl: 'https://api.waterguard.online',
   },
 
   onLaunch() {

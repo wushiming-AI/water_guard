@@ -22,7 +22,7 @@
       </view>
     </view>
     <input class="url-input" value="{{serverUrl}}" bindinput="onServerUrlInput"
-      placeholder="https://gills-register-prescribe.ngrok-free.dev"
+      placeholder="https://api.waterguard.online"
       placeholder-style="color:rgba(200,216,232,0.3)" />
   </view>
 

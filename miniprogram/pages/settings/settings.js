@@ -3,7 +3,7 @@ const api = require('../../utils/api');
 
 Page({
   data: {
-    serverUrl: 'https://gills-register-prescribe.ngrok-free.dev',
+    serverUrl: 'https://api.waterguard.online',
     sensitivity: 80,
     sensitivityOptions: ['低（60）', '中（75）', '高（85）', '极高（95）'],
     sensitivityValues: [60, 75, 85, 95],
@@ -80,7 +80,7 @@ Page({
     try {
       const data = await api.post('/api/settings', {
         settings: {
-          server_url: serverUrl || 'https://gills-register-prescribe.ngrok-free.dev',
+          server_url: serverUrl || 'https://api.waterguard.online',
           sensitivity: String(sensitivity),
           sound_alarm: String(soundAlarm),
           push_notify: String(pushNotify),

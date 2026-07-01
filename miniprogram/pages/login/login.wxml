@@ -35,7 +35,7 @@
         <view class="server-input-row">
           <input
             class="server-input"
-            placeholder="https://gills-register-prescribe.ngrok-free.dev"
+            placeholder="https://api.waterguard.online"
             placeholder-style="color: rgba(200,216,232,0.3)"
             value="{{serverUrl}}"
             bindinput="onServerUrlInput"
@@ -52,9 +52,9 @@
           {{testResult}}
         </view>
         <view class="server-tips">
-          <text>• 模拟器用 localhost 或 127.0.0.1</text>
-          <text>• 真机用电脑IP（如 http://192.168.5.3:8000）</text>
-          <text>• 必须勾选"详情→本地设置→不校验合法域名"</text>
+          <text>• 默认服务器：https://api.waterguard.online</text>
+          <text>• 真机已配置合法域名，直接使用即可</text>
+          <text>• 开发调试时可勾选"不校验合法域名"</text>
         </view>
       </view>
     </view>
